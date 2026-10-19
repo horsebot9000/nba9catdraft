@@ -221,8 +221,8 @@ td.mincol{font-weight:600;border-right:1px solid var(--line)}
 @media (min-width:1300px){.recpanel .recs{display:grid;grid-template-columns:1fr 1fr}}
 thead tr.standrow th{height:54px}
 thead tr.colrow th{top:54px}
-th.stc b small{font-family:var(--f-mono);font-size:10.5px;font-weight:500;color:var(--muted)}
-.sup{display:block;font-style:normal;font-family:var(--f-mono);font-size:11px;font-weight:600;margin-top:3px;padding:1px 4px;border-radius:3px}
+th.stc b small{display:block;margin-top:1px;font-family:var(--f-mono);font-size:10.5px;font-weight:500;color:var(--muted)}
+.sup{display:block;font-style:normal;font-family:var(--f-mono);font-size:10px;letter-spacing:-.02em;font-weight:600;margin-top:3px;padding:1px 4px;border-radius:3px}
 .sup.scarce{background:var(--neg);color:var(--surface)}
 .sup.tight{background:color-mix(in oklab,var(--warn) 30%,transparent);color:var(--warn)}
 .sup.deep{color:var(--muted)}
@@ -241,7 +241,11 @@ select{min-height:40px}
 .tools input[type=search]{flex:1 0 170px;min-height:40px;height:40px;box-sizing:border-box}
 .tools .pills{flex-wrap:nowrap}
 .pill{min-height:38px;min-width:40px;padding:0 10px;white-space:nowrap;flex:none}
-.legend{flex:none;padding:8px 12px;border-bottom:1px solid var(--line)}
+.boardpanel{position:relative}
+.legend{position:absolute;z-index:40;top:58px;right:10px;width:min(520px,calc(100% - 20px));max-height:70%;overflow:auto;
+  display:flex;flex-direction:column;gap:8px;padding:12px 14px;background:var(--surface);border:1px solid var(--line);border-radius:10px;
+  box-shadow:0 12px 30px rgba(0,0,0,.4);font-size:12.5px;line-height:1.45;color:var(--ink)}
+.legend[hidden]{display:none}
 .recstrip{display:flex;align-items:center;gap:8px;padding:6px 8px 6px 12px;flex:none}
 .rlab{font-family:var(--f-display);font-weight:600;font-size:15px;letter-spacing:.04em;text-transform:uppercase;white-space:nowrap;display:flex;flex-direction:column;line-height:1.1}
 .rlab small{font-family:var(--f-body);font-size:10.5px;font-weight:500;color:var(--muted);text-transform:none;letter-spacing:0}
@@ -261,6 +265,38 @@ select{min-height:40px}
   body.rail-on .main{display:flex!important}
 }
 #railBtn[aria-pressed=true]{border-color:var(--accent);color:var(--accent)}
+
+/* ---- fit the board to the screen width: no sideways scroll ---- */
+#board{table-layout:auto;width:100%}
+#board th,#board td{padding-left:4px;padding-right:4px}
+#board td.s3{white-space:normal}
+.s1{left:0;width:46px;min-width:46px}
+.s2{left:46px;width:36px;min-width:36px}
+.s3{left:82px;min-width:150px;max-width:220px}
+td.fxrk small.gapv{display:block;font-size:10.5px;font-weight:500;font-family:var(--f-mono)}
+td.fitc b{display:block;font-size:14px}
+td.fitc small{display:block;font-size:10.5px;color:var(--muted);white-space:nowrap}
+.hcell{min-width:96px}
+.hcell .gpproj{font-family:var(--f-mono);font-size:11px;color:var(--muted)}
+.hcell .gpproj.low{color:var(--neg);font-weight:600}
+td.c{min-width:42px;font-size:12.5px;padding-left:3px;padding-right:3px}
+.draft{min-width:54px;padding:0 6px}
+.pname{white-space:normal}
+.inote{max-width:200px}
+
+
+/* no sideways scrolling anywhere above the board */
+.tools{flex-wrap:wrap!important;overflow-x:visible!important}
+.tools input[type=search]{flex:1 1 150px;min-width:120px}
+#sortSel{min-height:38px;height:38px;border-radius:999px;padding:0 10px;font-weight:600;font-size:13px;flex:none}
+.recstrip .recs{display:grid!important;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));grid-template-rows:auto;grid-auto-rows:0;row-gap:0;overflow:hidden!important}
+.recstrip .rec{min-width:0}
+.recstrip .rec .rname{flex:0 1 auto}
+.recstrip .rec .rwhy{flex:1 1 auto;max-width:none}
+.recstrip .rec>*{flex-shrink:0}
+.recstrip .rec .rname,.recstrip .rec .rwhy{flex-shrink:1}
+.score .ctl{flex-wrap:wrap}
+@media (max-width:1300px){.score label[for=mySlot]{display:none}}
 @media (prefers-reduced-motion: reduce){*{transition:none!important}}
 </style>
 
@@ -310,10 +346,10 @@ select{min-height:40px}
       <div class="tools">
         <input type="search" id="q" placeholder="Search player or team" autocomplete="off">
         <div class="pills" id="posPills"></div>
-        <div class="pills" id="sortPills"></div>
+        <select id="sortSel" aria-label="Sort board by"><option value="fit">Sort: Fit</option><option value="fxRk">Sort: FX rank</option><option value="rank">Sort: My rank</option><option value="gap">Sort: Gap</option><option value="hAvg">Sort: Health</option><option value="MIN">Sort: Minutes</option></select>
         <button class="pill" id="viewBtn" aria-pressed="false">Z-scores</button>
         <button class="pill" id="takenBtn" aria-pressed="false">Drafted</button>
-        <button class="pill" id="hideHighBtn" aria-pressed="false">Hide injured</button>
+        <button class="pill" id="hideHighBtn" aria-pressed="false">Hide inj.</button>
         <button class="pill" id="keyBtn" aria-pressed="false">Key</button>
       </div>
       <div class="legend" id="legend" hidden>
@@ -1330,6 +1366,7 @@ function scoutCard(p){
     <div class="srow"><span class="slab">Situation</span><span>${p.from?`<b class="mv">New team: ${esc(p.from)} to ${esc(p.team)}.</b> `:''}${p.scout?esc(p.scout):'<span class="sub">No outlook published. See profile.</span>'}</span></div>
     <div class="srow"><span class="slab">Profile</span><span>${esc(profile(p))}</span></div>
     <div class="srow"><span class="slab">Health</span><span>${riskBadge(p)} ${h.rookie?'No NBA games yet.':`GP by season ${h.hist.map(g=>g==null?'-':g).join(' / ')} (avg ${Math.round(h.avg)}).`} ESPN projects ${p.GP} GP, model uses ${p.effGP}.${h.note?' '+esc(h.note)+'.':h.out?' Out per ESPN.':''}</span></div>
+    <div class="srow"><span class="slab">Market</span><span class="num">FX rank ${p.fxRk||'-'} · Fantrax ADP ${p.fxADP?p.fxADP.toFixed(1):'-'} · ESPN ADP ${p.espnADP?p.espnADP.toFixed(1):'-'} · My rank ${p.rank} · Value ${p.val.toFixed(2)}</span></div>
     <div class="srow"><span class="slab">Per game</span><span class="num">${p.MIN.toFixed(1)} min · ${p.PTS.toFixed(1)} pts · ${p.REB.toFixed(1)} reb · ${p.AST.toFixed(1)} ast · ${p.STL.toFixed(1)} stl · ${p.BLK.toFixed(1)} blk · ${(p.TPM||0).toFixed(1)} 3pm · ${(p.fgp*100).toFixed(1)} FG% · ${(p.ftp*100).toFixed(1)} FT% · ${p.TO.toFixed(1)} TO</span></div>
   </div>`;
 }
@@ -1387,8 +1424,8 @@ function render(){
 
   // board
   const cols=[
-    {k:'fxRk',l:'FX Rk',num:1},{k:'rank',l:'My Rk',num:1},{k:'name',l:'Player',left:1},{k:'gap',l:'Gap',num:1},{k:'fxADP',l:'ADP',num:1},
-    {k:'val',l:'Value',num:1},{k:'fit',l:'Fit',num:1},{k:'GP',l:'Proj GP',num:1},{k:'hAvg',l:'Health · GP 3 yrs',num:1},{k:'MIN',l:'MIN',num:1},
+    {k:'fxRk',l:'FX',num:1},{k:'rank',l:'My',num:1},{k:'name',l:'Player',left:1},
+    {k:'fit',l:'Fit',num:1},{k:'hAvg',l:'Health',num:1},{k:'MIN',l:'Min',num:1},
     ...CATS.map(c=>({k:'z.'+c.k,l:c.l,cat:c.k})),{k:'act',l:''}];
   let rows=P.filter(p=>S.showTaken||!p.taken);
   if(S.pos!=='ALL')rows=rows.filter(p=>p.pos.includes(S.pos));
@@ -1405,7 +1442,7 @@ function render(){
     if(c.k==='fxRk')return '<th class="s1"></th>'; if(c.k==='rank')return '<th class="s2"></th>';
     if(!c.cat)return '<th></th>';
     const sc=SCAR[c.cat];const ratio=sc.now?sc.later/sc.now:0;const scls=(sc.later<=4||ratio<=.5)?'scarce':(sc.later<=8||ratio<=.7)?'tight':'deep';
-    const supply=`<em class="sup ${scls}" title="Top sources: ${esc(sc.names.join(', '))}">${sc.now} → ${sc.later}</em>`;
+    const supply=`<em class="sup ${scls}" title="Top sources: ${esc(sc.names.join(', '))}">${sc.now}→${sc.later}</em>`;
     if(!W(c.cat))return `<th class="stc punt">PUNT${supply}</th>`;
     if(!nMine)return `<th class="stc"><b>-</b>${supply}</th>`;
     const rk=R.rank[c.cat],v=R.me.sum[c.cat];
@@ -1416,20 +1453,16 @@ function render(){
     const gap=p.fxRk?p.fxRk-p.rank:null;
     const gpLow=p.GP<62;
     return `<tr class="${p.taken?'taken':''} ${p.health.risk==='High'?'rowhigh':p.health.risk==='Med'?'rowmed':''}">
-      <td class="num fxrk s1">${p.fxRk||'-'}</td>
+      <td class="num fxrk s1">${p.fxRk||'-'}<small class="gapv ${gap==null?'':gap>0?'dgood':gap<-15?'dbad':''}">${gap==null?'':(gap>0?'+':'')+gap}</small></td>
       <td class="num s2">${p.rank}</td>
       <td class="l s3"><div class="pname"><button class="nbtn" data-open="${p.id}" aria-expanded="${openId===p.id}">${esc(p.name)} <span class="chev">${openId===p.id?'▴':'▾'}</span></button>${injTag(p)}${p.fills?'<span class="tag need">NEED</span>':''}</div><div class="sub">${esc(p.pos.join('/'))} · ${p.team}${p.from?` <span class="tag mvt">NEW · was ${esc(p.from)}</span>`:''}${p.scout?' <span class="tag scn">NOTE</span>':''}${p.taken?' · '+esc(TEAMS[p.taken.team])+' #'+p.taken.pick:''}</div>${noteLine(p)}</td>
-      <td class="num ${gap==null?'':gap>0?'dgood':gap<-15?'dbad':''}">${gap==null?'-':(gap>0?'+':'')+gap}</td>
-      <td class="num sub">${p.fxADP?p.fxADP.toFixed(1):'-'}</td>
-      <td class="num">${p.val.toFixed(1)}</td>
-      <td class="num"><b>${p.fit.toFixed(1)}</b></td>
-      <td class="num gp ${gpLow?'low':''}">${p.GP}</td>
-      <td class="hcell">${riskBadge(p)}<div class="gpw">${gpBars(p)}</div></td>
+      <td class="num fitc"><b>${p.fit.toFixed(1)}</b><small>val ${p.val.toFixed(1)}</small></td>
+      <td class="hcell">${riskBadge(p)} <span class="gpproj ${gpLow?'low':''}">${p.GP}g</span><div class="gpw">${gpBars(p)}</div></td>
       <td class="num mincol">${p.MIN.toFixed(1)}</td>
       ${CATS.map(c=>{const off=!W(c.k);return `<td class="c ${off?'off':''}" style="${heat(p.z[c.k],off)}">${cellVal(p,c.k)}</td>`}).join('')}
       <td>${p.taken?'':`<button class="draft ${onClock===S.mySlot?'mine':''}" data-pick="${p.id}" ${done?'disabled':''}>Draft</button>`}</td></tr>${openId===p.id?`<tr class="scoutrow"><td colspan="${cols.length}">${scoutCard(p)}</td></tr>`:''}`}).join('')+'</tbody>';
   $('board').innerHTML=head+body;
-  document.querySelectorAll('#sortPills .pill').forEach(b=>b.setAttribute('aria-pressed',b.dataset.qs===S.sort));
+  {const sel=$('sortSel');if([...sel.options].some(o=>o.value===S.sort))sel.value=S.sort;else sel.selectedIndex=-1;}
   document.querySelectorAll('#posPills .pill').forEach(b=>b.setAttribute('aria-pressed',b.dataset.pos===S.pos));
   $('viewBtn').setAttribute('aria-pressed',S.view==='z');$('viewBtn').textContent=S.view==='z'?'Stats':'Z-scores';
   $('takenBtn').setAttribute('aria-pressed',S.showTaken);$('hideHighBtn').setAttribute('aria-pressed',!!S.hideHigh);
@@ -1471,15 +1504,16 @@ $('themeBtn').onclick=()=>{S.theme=S.theme==='dark'?'light':'dark';save();applyT
 $('mySlot').innerHTML=TEAMS.map((t,i)=>`<option value="${i}">${esc(t)}</option>`).join('');
 $('mySlot').value=S.mySlot;
 $('mySlot').onchange=e=>{S.mySlot=+e.target.value;save();render()};
-$('sortPills').innerHTML=[['fit','Fit'],['fxRk','FX rank'],['rank','My rank']].map(([k,l])=>`<button class="pill" data-qs="${k}">${l}</button>`).join('');
+$('sortSel').onchange=e=>{const k=e.target.value;S.sort=k;S.dir=['fxRk','rank'].includes(k)?1:-1;save();render()};
 $('posPills').innerHTML=['ALL','PG','SG','SF','PF','C'].map(x=>`<button class="pill" data-pos="${x}">${x==='ALL'?'All':x}</button>`).join('');
 document.addEventListener('click',e=>{
+  if(!$('legend').hidden&&!e.target.closest('#legend,#keyBtn')){$('legend').hidden=true;$('keyBtn').setAttribute('aria-pressed','false')}
   const t=e.target.closest('button,th');if(!t)return;
   if(t.dataset.recopen!=null){const id=+t.dataset.recopen;openId=id;q='';$('q').value='';S.pos='ALL';render();const b=document.querySelector(`[data-open="${id}"]`);if(b)b.scrollIntoView({block:'center',behavior:'smooth'});return}
   if(t.dataset.open!=null){const id=+t.dataset.open;openId=openId===id?null:id;render();return}
   if(t.dataset.pick!=null){const n=S.log.length+1;if(n>NT*NR)return;S.log.push({id:+t.dataset.pick,team:slotOf(n)});save();render();return}
   if(t.dataset.m){S.mode[t.dataset.c]=t.dataset.m;save();render();return}
-  if(t.dataset.qs){S.sort=t.dataset.qs;S.dir=t.dataset.qs==='fit'?-1:1;save();render();return}
+  if(t.dataset.qs){S.sort=t.dataset.qs;S.dir=(t.dataset.qs==='fit'||t.dataset.qs==='gap')?-1:1;save();render();return}
   if(t.dataset.pos){S.pos=t.dataset.pos;save();render();return}
   if(t.dataset.sort&&t.dataset.sort!=='act'){const k=t.dataset.sort;if(S.sort===k)S.dir*=-1;else{S.sort=k;S.dir=['rank','fxRk','fxADP','name'].includes(k)?1:-1}save();render();return}
 });
