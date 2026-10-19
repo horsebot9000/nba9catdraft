@@ -1,0 +1,1496 @@
+<title>Last Hand Limp Draft Board</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: sticky scoreboard strip, then board (left) + my team rail (right); stacks on narrow tablets/phones */
+:root{
+  --bg:#eaeef2; --surface:#ffffff; --raised:#f5f7f9; --ink:#121821; --muted:#5a6676; --line:#d3dae2;
+  --accent:#d9531e; --accent-ink:#ffffff; --pos:#17865a; --neg:#c43c2a; --warn:#b7790f; --focus:#2f5fd0;
+  --f-display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0e1319; --surface:#151c25; --raised:#1b2430; --ink:#e6ebf1; --muted:#8d9aab; --line:#283444;
+  --accent:#ff7a3d; --accent-ink:#1a0d05; --pos:#3cc386; --neg:#f2735e; --warn:#e5ad3d; --focus:#7aa2ff; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0e1319; --surface:#151c25; --raised:#1b2430; --ink:#e6ebf1; --muted:#8d9aab; --line:#283444;
+  --accent:#ff7a3d; --accent-ink:#1a0d05; --pos:#3cc386; --neg:#f2735e; --warn:#e5ad3d; --focus:#7aa2ff; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.4;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 32px;
+  -webkit-tap-highlight-color:transparent}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--surface)}
+button,select,input{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+
+/* scoreboard */
+.score{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--surface);border-bottom:1px solid var(--line);
+  margin-inline:calc(-1 * max(16px,env(safe-area-inset-left,0px)));padding:10px max(16px,env(safe-area-inset-right,0px)) 10px max(16px,env(safe-area-inset-left,0px));
+  display:flex;flex-wrap:wrap;gap:10px 22px;align-items:center}
+.brand{font-family:var(--f-display);font-weight:700;font-size:22px;letter-spacing:.02em;text-transform:uppercase;line-height:1}
+.brand small{display:block;font-family:var(--f-body);font-weight:500;font-size:11px;letter-spacing:.08em;color:var(--muted)}
+.clock{display:flex;gap:18px;flex-wrap:wrap;align-items:center}
+.stat{display:flex;flex-direction:column}
+.stat b{font-family:var(--f-display);font-size:26px;font-weight:600;line-height:1}
+.stat span{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.onclock{padding:6px 12px;border-radius:6px;background:var(--raised);border:1px solid var(--line)}
+.onclock.me{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.onclock.me span{color:inherit;opacity:.85}
+.score .spacer{flex:1}
+.ctl{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+select,input[type=search]{min-height:44px;border:1px solid var(--line);background:var(--raised);border-radius:8px;padding:0 12px}
+.btn{min-height:44px;padding:0 16px;border-radius:8px;border:1px solid var(--line);background:var(--raised);font-weight:600}
+.btn[aria-pressed=true]#syncBtn{border-color:var(--pos);color:var(--pos)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+
+/* layout */
+.wrap{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:18px;margin-top:16px;align-items:start}
+@media (max-width:1100px){.wrap{grid-template-columns:1fr}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;min-width:0}
+.panel h2{font-family:var(--f-display);font-weight:600;font-size:18px;letter-spacing:.04em;text-transform:uppercase;margin:0}
+.ph{display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding:12px 14px;border-bottom:1px solid var(--line)}
+.ph .hint{font-size:12px;color:var(--muted)}
+
+/* category toggles */
+.cats{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;padding:12px 14px}
+.cat{display:flex;flex-direction:column;gap:4px}
+.cat label{font-family:var(--f-display);font-weight:600;font-size:15px;letter-spacing:.04em}
+.seg{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{min-height:40px;border:0;background:var(--raised);font-size:13px;font-weight:600;color:var(--muted)}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed=true][data-m="focus"]{background:var(--pos);color:var(--surface)}
+.seg button[aria-pressed=true][data-m="normal"]{background:var(--ink);color:var(--surface)}
+.seg button[aria-pressed=true][data-m="punt"]{background:var(--muted);color:var(--surface)}
+.sliders{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px 20px;padding:4px 14px 14px}
+.sliders label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted)}
+.sliders label b{color:var(--ink);font-weight:600}
+input[type=range]{width:100%;height:36px;accent-color:var(--accent)}
+
+/* recs */
+.recs{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px;padding:12px 14px}
+.rec{border:1px solid var(--line);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;background:var(--raised)}
+.rec .top{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.rec .nm{font-weight:600}
+.rec .why{font-size:12.5px;color:var(--muted)}
+.rec .btn{min-height:40px}
+
+/* board */
+.tools{display:flex;flex-wrap:wrap;gap:8px;padding:12px 14px;border-bottom:1px solid var(--line);align-items:center}
+.tools input[type=search]{flex:1 1 220px;min-width:0}
+.pills{display:flex;flex-wrap:wrap;gap:6px}
+.pill{min-height:40px;min-width:48px;padding:0 12px;border-radius:999px;border:1px solid var(--line);background:var(--raised);font-weight:600;font-size:13px}
+.pill[aria-pressed=true]{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.scroll{overflow:auto;-webkit-overflow-scrolling:touch;max-height:calc(100dvh - var(--hdr,80px) - 16px);overscroll-behavior:contain;border-top:1px solid var(--line)}
+.boardpanel{scroll-margin-top:calc(var(--hdr,80px) + 8px)}
+th{z-index:3}
+th.s1,th.s2,th.s3{z-index:4}
+td.s1,td.s2,td.s3{position:sticky;z-index:2;background:var(--surface)}
+th.s1,th.s2,th.s3{position:sticky}
+.s1{left:0;width:52px;min-width:52px}
+.s2{left:52px;width:48px;min-width:48px}
+.s3{left:100px;min-width:190px;box-shadow:1px 0 0 var(--line)}
+td.fxrk.s1{background:color-mix(in oklab,var(--accent) 10%,var(--surface))}
+.scard{position:sticky;left:0;max-width:min(900px,calc(100vw - 48px))}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th{position:sticky;top:0;background:var(--surface);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600;
+  padding:8px 6px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th.sortable{cursor:pointer}
+th[aria-sort]{color:var(--accent)}
+th.l,td.l{text-align:left}
+td{padding:6px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+td.c{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:13px;min-width:52px}
+td.c.off{opacity:.35}
+td.fxrk{font-weight:600;font-size:15px;background:color-mix(in oklab,var(--accent) 10%,transparent)}
+tr.taken td{color:var(--muted)} tr.taken td.c{opacity:.45}
+.pname{font-weight:600;white-space:nowrap}
+.sub{font-size:11.5px;color:var(--muted);font-weight:400}
+.tag{display:inline-block;font-size:10.5px;font-weight:600;letter-spacing:.04em;padding:1px 6px;border-radius:4px;margin-left:4px;vertical-align:1px}
+.tag.inj{background:color-mix(in oklab,var(--neg) 18%,transparent);color:var(--neg)}
+.tag.dtd{background:color-mix(in oklab,var(--warn) 22%,transparent);color:var(--warn)}
+.tag.need{background:color-mix(in oklab,var(--focus) 16%,transparent);color:var(--focus)}
+.tag.gone{background:color-mix(in oklab,var(--accent) 18%,transparent);color:var(--accent)}
+.gp.low{color:var(--neg);font-weight:600}
+.dgood{color:var(--pos)} .dbad{color:var(--neg)}
+.draft{min-height:40px;min-width:64px;padding:0 10px;border-radius:8px;border:1px solid var(--line);background:var(--raised);font-weight:600;font-size:13px}
+.draft.mine{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted);padding:10px 14px}
+.sw{display:inline-block;width:14px;height:14px;border-radius:3px;vertical-align:-2px;margin-right:4px}
+
+/* rail */
+.rail{display:flex;flex-direction:column;gap:18px}
+.slots{list-style:none;margin:0;padding:6px 14px 12px;display:grid;gap:2px}
+.slots li{display:grid;grid-template-columns:54px 1fr;gap:8px;padding:6px 0;border-bottom:1px dashed var(--line);font-size:14px}
+.slots li span:first-child{font-family:var(--f-display);font-weight:600;color:var(--muted);letter-spacing:.04em}
+.slots li.empty span:last-child{color:var(--muted);font-style:italic}
+.prof{padding:10px 14px 14px;display:grid;gap:8px}
+.prow{display:grid;grid-template-columns:44px 1fr 44px;gap:8px;align-items:center;font-size:13px}
+.prow .lab{font-family:var(--f-display);font-weight:600;letter-spacing:.04em}
+.bar{position:relative;height:14px;background:var(--raised);border-radius:3px;overflow:hidden}
+.bar i{position:absolute;top:0;bottom:0}
+.bar .mid{position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--line)}
+.prow .rk{text-align:right;font-family:var(--f-mono);font-size:12px}
+.prow.punt{opacity:.4}
+.log{list-style:none;margin:0;padding:6px 14px 12px;max-height:340px;overflow:auto;display:flex;flex-direction:column-reverse}
+.log li{display:grid;grid-template-columns:40px 1fr;gap:8px;padding:5px 0;border-bottom:1px solid var(--line);font-size:13px}
+.log li.me{color:var(--accent);font-weight:600}
+.log .t{color:var(--muted);font-size:11.5px}
+.empty-note{padding:12px 14px;color:var(--muted);font-size:13px}
+details.rosters summary{padding:12px 14px;cursor:pointer;font-family:var(--f-display);font-weight:600;font-size:18px;letter-spacing:.04em;text-transform:uppercase;min-height:44px}
+.troster{padding:0 14px 10px;font-size:13px}
+.troster h3{font-size:13px;margin:10px 0 4px}
+.troster p{margin:0;color:var(--muted)}
+.rowbtns{display:flex;gap:8px;padding:0 14px 14px;flex-wrap:wrap}
+.note{font-size:12px;color:var(--muted);padding:0 14px 14px;line-height:1.5}
+tr.rowhigh td:first-child{box-shadow:inset 4px 0 0 var(--neg)}
+tr.rowmed td:first-child{box-shadow:inset 4px 0 0 var(--warn)}
+.hcell{text-align:left;min-width:130px}
+.hb{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.03em;padding:2px 7px;border-radius:4px}
+.hr-high{background:var(--neg);color:var(--surface)}
+.hr-med{background:color-mix(in oklab,var(--warn) 28%,transparent);color:var(--warn)}
+.hr-low{background:color-mix(in oklab,var(--pos) 18%,transparent);color:var(--pos)}
+.hr-rook{background:var(--raised);color:var(--muted);border:1px solid var(--line)}
+.gpw{display:flex;align-items:flex-end;gap:6px;margin-top:3px}
+.gpb{display:inline-flex;align-items:flex-end;gap:2px;height:20px}
+.gpb i{display:block;width:7px;background:var(--pos);border-radius:1px}
+.gpb i.md{background:var(--warn)} .gpb i.lo{background:var(--neg)}
+.gpb i.na{height:2px;background:var(--line)}
+.gpn{font-family:var(--f-mono);font-size:11px;color:var(--muted)}
+.inote{font-size:11.5px;font-weight:600;color:var(--warn);margin-top:2px;white-space:normal;max-width:240px}
+.inote.out{color:var(--neg)}
+.rech .hb{vertical-align:1px}
+
+.nbtn{all:unset;cursor:pointer;font-weight:600;min-height:28px;display:inline-flex;align-items:center;gap:4px}
+.nbtn:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:3px}
+.chev{font-size:11px;color:var(--muted)}
+.tag.mvt{background:color-mix(in oklab,var(--focus) 16%,transparent);color:var(--focus);margin-left:2px}
+.tag.scn{background:var(--raised);color:var(--muted);border:1px solid var(--line)}
+tr.scoutrow td{white-space:normal;text-align:left;background:var(--raised);padding:0}
+.scard{display:grid;gap:8px;padding:12px 14px 14px;max-width:900px;font-size:14px;line-height:1.5}
+.srow{display:grid;grid-template-columns:90px 1fr;gap:10px}
+.slab{font-family:var(--f-display);font-weight:600;letter-spacing:.05em;text-transform:uppercase;font-size:13px;color:var(--muted);padding-top:1px}
+.mv{color:var(--focus)}
+.snote{color:var(--ink);font-size:13px;line-height:1.45}
+@media (max-width:600px){.srow{grid-template-columns:1fr;gap:2px}}
+
+/* app layout: header fixed, board fills the rest and scrolls on its own */
+html,body{height:100%}
+body{display:flex;flex-direction:column;overflow:hidden;padding-block:0}
+.score{position:relative;top:auto;flex:0 0 auto}
+.wrap{flex:1 1 auto;min-height:0;margin-top:12px;margin-bottom:12px;align-items:stretch}
+.main{display:flex;flex-direction:column;gap:12px;min-width:0;min-height:0;overflow:hidden}
+.rail{min-height:0;overflow:auto;-webkit-overflow-scrolling:touch;padding-bottom:8px}
+.boardpanel{flex:1 1 auto;min-height:280px;display:flex;flex-direction:column}
+.boardpanel .scroll{flex:1 1 auto;min-height:0;max-height:none}
+details.recpanel>summary{list-style:none;cursor:pointer;min-height:44px;align-items:center}
+details.recpanel>summary::-webkit-details-marker{display:none}
+details.recpanel[open] .chev{display:inline-block;transform:rotate(180deg)}
+details.plan>summary{list-style:none;cursor:pointer;min-height:48px;align-items:center;border-bottom:0}
+details.plan>summary::-webkit-details-marker{display:none}
+details.plan[open]>summary{border-bottom:1px solid var(--line)}
+details.plan[open] .chev{display:inline-block;transform:rotate(180deg)}
+.plan .cats{padding-top:10px}
+.recpanel .recs{display:flex;overflow-x:auto;gap:10px;padding:10px 14px;-webkit-overflow-scrolling:touch}
+.recpanel .rec{flex:0 0 270px}
+.recpanel .ph{padding-block:8px}
+#railBtn{display:none}
+@media (max-width:1100px){
+  #railBtn{display:inline-block}
+  .rail{display:none}
+  body.rail-on .rail{display:flex}
+  body.rail-on .main{display:none}
+}
+@media (max-height:700px){.recpanel .rec .snote{display:none}}
+
+thead tr.standrow th{top:0;height:40px;padding:4px 6px;border-bottom:1px solid var(--line);text-transform:none;letter-spacing:0;font-size:12px;vertical-align:middle}
+thead tr.colrow th{top:40px}
+th.standlab{color:var(--ink);font-family:var(--f-display);font-size:14px;letter-spacing:.04em;text-transform:uppercase}
+th.standlab span{display:block;font-family:var(--f-body);font-size:10.5px;color:var(--muted);text-transform:none;letter-spacing:0;font-weight:500}
+th.stc{text-align:center;color:var(--ink)}
+th.stc b{display:block;font-family:var(--f-display);font-size:16px;line-height:1}
+th.stc span{display:block;font-family:var(--f-mono);font-size:10.5px;color:var(--muted);font-weight:500}
+th.stc.good{background:color-mix(in oklab,var(--pos) 22%,var(--surface))}
+th.stc.warn{background:color-mix(in oklab,var(--warn) 22%,var(--surface))}
+th.stc.bad{background:color-mix(in oklab,var(--neg) 28%,var(--surface))}
+th.stc.punt{color:var(--muted);font-size:10.5px;letter-spacing:.08em}
+td.mincol{font-weight:600;border-right:1px solid var(--line)}
+
+.recpanel .recs{display:flex;flex-direction:column;gap:6px;padding:6px 14px 10px;overflow:visible}
+.recpanel .rec{flex:none;display:flex;flex-direction:row;align-items:center;gap:10px;padding:4px 6px 4px 10px;border-radius:8px;min-height:46px;flex-wrap:nowrap;overflow:hidden}
+.rname{all:unset;cursor:pointer;font-weight:600;white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.rname:focus-visible{outline:2px solid var(--focus);border-radius:3px}
+.rfit{font-weight:600;color:var(--accent)}
+.rwhy{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
+.rec .draft{margin-left:auto;flex:none}
+@media (min-width:1300px){.recpanel .recs{display:grid;grid-template-columns:1fr 1fr}}
+thead tr.standrow th{height:54px}
+thead tr.colrow th{top:54px}
+th.stc b small{font-family:var(--f-mono);font-size:10.5px;font-weight:500;color:var(--muted)}
+.sup{display:block;font-style:normal;font-family:var(--f-mono);font-size:11px;font-weight:600;margin-top:3px;padding:1px 4px;border-radius:3px}
+.sup.scarce{background:var(--neg);color:var(--surface)}
+.sup.tight{background:color-mix(in oklab,var(--warn) 30%,transparent);color:var(--warn)}
+.sup.deep{color:var(--muted)}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+
+<header class="score">
+  <div class="brand">Last Hand Limp<small>9-CAT H2H · 10 TEAMS · 17 RDS · 3RD ROUND REVERSAL</small></div>
+  <div class="clock">
+    <div class="stat"><b class="num" id="sPick">1</b><span>Pick</span></div>
+    <div class="stat"><b class="num" id="sRound">1</b><span>Round</span></div>
+    <div class="stat onclock" id="sClockBox"><b id="sClock">-</b><span>On the clock</span></div>
+    <div class="stat"><b class="num" id="sNext">-</b><span id="sNextLab">Your next pick</span></div>
+  </div>
+  <div class="spacer"></div>
+  <div class="ctl">
+    <label for="mySlot" class="sub">My team</label>
+    <select id="mySlot"></select>
+    <button class="btn" id="railBtn">My team</button>
+    <button class="btn" id="themeBtn">Light mode</button>
+    <button class="btn" id="undo">Undo pick</button>
+    <button class="btn" id="syncBtn" aria-pressed="true">Fantrax sync</button>
+    <button class="btn" id="syncNow">Sync now</button>
+    <span class="sub" id="syncStat"></span>
+  </div>
+</header>
+
+<div class="wrap">
+  <main class="main">
+    <details class="panel plan" id="planBox">
+      <summary class="ph"><h2>Category plan <span class="chev">▾</span></h2><span class="hint" id="planSum"></span></summary>
+      <div class="cats" id="cats"></div>
+      <div class="note" style="padding:0 14px 6px">TO counts at half weight on Normal (1x on Focus) because turnovers rise with usage and full weight buries every primary ball handler.</div>
+      <div class="sliders">
+        <label for="gpw">Games-played penalty <b id="gpwV"></b>
+          <input type="range" id="gpw" min="0" max="100" step="5">
+          <span>0 = per-game value only. 100 = full games-missed penalty. Games used = ESPN projection blended with each player's last 3 seasons, so injury history counts.</span></label>
+        <label for="beta">Balance pull <b id="betaV"></b>
+          <input type="range" id="beta" min="0" max="100" step="5">
+          <span>Boosts players who help the categories your roster is losing vs the league. 0 = pure best available.</span></label>
+      </div>
+    </details>
+
+    <details class="panel recpanel" id="recBox" open>
+      <summary class="ph"><h2>Best fits now <span class="chev">▾</span></h2><span class="hint" id="recHint"></span></summary>
+      <div class="recs" id="recs"></div>
+    </details>
+
+    <section class="panel boardpanel" id="boardPanel">
+      <div class="ph"><h2>Player board</h2><span class="hint">Tap a name for the scouting card · tap a column to sort · tap Draft to log a pick for the team on the clock</span></div>
+      <div class="tools">
+        <input type="search" id="q" placeholder="Search player or team" autocomplete="off">
+        <div class="pills" id="posPills"></div>
+        <div class="pills" id="sortPills"></div>
+        <button class="pill" id="viewBtn" aria-pressed="false">Show z-scores</button>
+        <button class="pill" id="takenBtn" aria-pressed="false">Show drafted</button>
+        <button class="pill" id="hideHighBtn" aria-pressed="false">Hide high injury risk</button>
+      </div>
+      <div class="legend">
+        <span><i class="sw" style="background:color-mix(in oklab,var(--pos) 55%,transparent)"></i>Strong in cat</span>
+        <span><i class="sw" style="background:color-mix(in oklab,var(--neg) 55%,transparent)"></i>Hurts cat</span>
+        <span>Supply row: elite players (z 1.0+ in that cat) still available now → expected left at your next pick, by Fantrax rank. Red = scarce, take it early. Amber = thinning.</span>
+        <span>Health: Low / Med / High risk from games played the last 3 seasons (bars, oldest to newest, out of 82) plus current injury status. Red row stripe = high risk, amber = medium.</span>
+        <span>Value = 9-cat z-score total (TO half weight) with your weights, discounted for games missed using projection plus injury history · Fit = Value adjusted for your roster needs · FX Rk = Fantrax default rank (the order the Fantrax draft room lists players) · My Rk = rank by Value · Gap = FX Rk minus My Rk (positive = room will let him slide)</span>
+      </div>
+      <div class="scroll"><table id="board"></table></div>
+    </section>
+  </main>
+
+  <aside class="rail">
+    <section class="panel">
+      <div class="ph"><h2>My roster</h2><span class="hint" id="rCount"></span></div>
+      <ul class="slots" id="slots"></ul>
+    </section>
+    <section class="panel">
+      <div class="ph"><h2>Category standing</h2><span class="hint">rank of 10</span></div>
+      <div class="prof" id="prof"></div>
+      <div class="note">Bars show your summed z-score per category. Rank compares your roster to every other drafted roster.</div>
+    </section>
+    <section class="panel">
+      <div class="ph"><h2>Pick log</h2><span class="hint" id="logCount"></span></div>
+      <ul class="log" id="log"></ul>
+      <div class="rowbtns"><button class="btn" id="reset">Reset draft</button></div>
+      <div class="note" id="resetNote" hidden>Tap Reset draft again within 4 seconds to clear every pick.</div>
+    </section>
+    <details class="panel rosters"><summary>All rosters</summary><div id="rosters"></div></details>
+    <div class="note">Projections: ESPN 2026-27 per-game projections and projected games. ADP: Fantrax NBA ADP. Eligibility: this league's Fantrax positions. Pulled Oct 19, 2026.</div>
+  </aside>
+</div>
+
+<script>
+const RAW=`Nikola Jokic,DEN,,1,1.37,72,35.6,28.25,12.69,10.1,1.6,0.81,1.69,3.4,10.58,18.4,5.39,6.6,C,1.31
+Shai Gilgeous-Alexander,OKC,,2,3.04,76,33.8,31.25,4.89,6.39,1.7,0.89,1.71,2.3,10.88,20.3,7.78,8.8,PG,3.66
+Luka Doncic,LAL,,3,3.59,68,36.7,33.01,8.5,8.9,1.6,0.5,3.96,4,10.93,22.9,7.21,9.21,PG/SG,3.41
+Victor Wembanyama,SAS,,4,3,67,32.5,26.85,12.4,3.6,1.19,3.51,2.22,2.9,9.39,18.7,5.85,7.1,C,1.9
+Giannis Antetokounmpo,MIA,,5,5.75,67,33.6,32.06,11.4,6.3,1.1,0.81,0.49,3.7,12.04,19.3,7.48,11.51,PF/C,6.95
+Jalen Johnson,ATL,,6,8.63,72,36.7,22.99,10.6,7.9,1.31,0.5,1.68,3.4,8.57,17.5,4.17,5.31,SF/PF,10.66
+Cade Cunningham,DET,,7,7.99,69,34.8,24.62,5.59,9.8,1.41,0.8,2,3.8,8.9,19.3,4.83,5.9,PG/SG,5.83
+Anthony Edwards,MIN,,8,7.23,72,35.8,30.31,5.19,4,1.31,0.81,3.64,3,10.28,21.4,6.11,7.6,SG/SF,8.4
+Jayson Tatum,BOS,,9,8.88,70,36.2,26.7,8.6,5.8,1.1,0.5,3.37,2.8,9.13,20.1,5.07,6.2,SF/PF,7.6
+Donovan Mitchell,CLE,,10,11.33,71,33.9,26.79,4.8,5.7,1.61,0.3,3.32,2.61,9.25,19.9,4.96,5.8,PG/SG,14.79
+Cooper Flagg,DAL,,11,10.8,72,35.5,25.26,7,4.81,1.31,1,1.18,2.4,9.49,20.1,5.11,6.1,PG/SG/SF,10.21
+Domantas Sabonis,SAC,,12,17.96,69,34.8,18.94,13.59,6.8,0.8,0.51,0.59,3.1,7.51,12.8,3.33,4.59,PF/C,33.64
+Tyrese Maxey,PHI,,13,13.47,71,34.2,24.83,3.51,5.8,1.61,0.61,2.82,2.1,8.7,19.1,4.61,5.2,PG/SG,10.45
+LaMelo Ball,MIN,,14,15.87,68,32.9,23.88,5.6,8.29,1.4,0.29,4.37,3.29,8.34,20.5,2.84,3.21,PG,24.99
+Jalen Brunson,NYK,,15,15.22,72,35.3,26.92,3.31,6.9,0.9,0.1,2.61,2.4,9.51,20,5.28,6.31,PG,29
+Trae Young,WAS,,16,23.42,71,34.5,23.83,2.8,10.8,1.2,0.2,2.9,4.3,7.35,17.51,6.23,7.2,PG,24.93
+Scottie Barnes,TOR,,17,16.88,72,33.8,18.82,7.69,6,1.4,1.31,1.04,2.69,7.26,15,3.25,4.1,SF/PF/C,12.33
+Josh Giddey,CHI,,18,23.98,68,35.5,18.5,9.21,9.6,1.21,0.6,2.01,3.79,6.56,14.5,3.37,4.4,PG/SG,26.12
+Amen Thompson,HOU,,19,21.49,78,36.5,17.71,7.71,5.1,1.5,0.71,0.31,2.29,6.85,12.79,3.71,4.79,PG/SG/SF/PF,20.26
+Devin Booker,PHX,,20,23.21,72,35.8,26.46,4.19,6.69,0.9,0.31,2.21,2.9,8.94,19.1,6.36,7.19,PG/SG/SF,26.82
+Tyrese Haliburton,IND,,21,19.01,64,33.1,19.16,3.7,9.91,1.3,0.7,2.92,1.91,6.8,14.3,2.64,3.09,PG/SG,13.74
+Alperen Sengun,HOU,,22,23.87,72,32.7,20.03,9.4,5.69,1.19,1,0.46,2.9,7.92,15.4,3.74,5.4,PF/C,18.73
+Kevin Durant,HOU,,23,21.34,72,34.6,24.99,5.6,4.4,0.81,1,2.26,3,9,17.19,4.72,5.5,SG/SF/PF,16.54
+Karl-Anthony Towns,NYK,,24,21.64,70,32.7,21.94,11.2,4.4,0.9,0.6,1.83,2.6,7.76,15.2,4.6,5.4,PF/C,16.34
+James Harden,CLE,,25,29.37,73,33.6,20.58,5,8.1,1.21,0.6,2.81,3.4,6.07,14.3,5.63,6.4,PG/SG,31.52
+Pascal Siakam,IND,,26,30.6,74,34.8,22.8,7.3,4,1,0.5,1.55,1.8,8.78,17.09,3.68,5.09,SF/PF/C,51.87
+Jalen Duren,DET,,27,30.08,72,31,20.25,11.69,2.31,0.9,1,0,2,7.79,11.9,4.67,6.31,C,41.32
+Jamal Murray,DEN,,28,31.03,69,35,23.06,4.1,6.59,1.1,0.51,2.77,2.2,8.29,17.3,3.71,4.2,PG/SG,20.15
+Anthony Davis,WAS,,29,31.1,61,32.2,22.59,11.39,3.2,1.1,2.1,0.44,2,8.61,16,4.93,6.2,PF/C,28.33
+Deni Avdija,POR,,30,33.9,72,33.7,23.03,7.19,6.31,0.81,0.6,1.86,3.6,7.24,15.5,6.69,8.4,SG/SF/PF,39.64
+Austin Reaves,LAL,,31,32.13,67,36.6,25.36,4.9,5.9,1.1,0.4,2.73,3,8.09,16.7,6.45,7.4,PG/SG/SF,21.92
+Bam Adebayo,MIA,DTD,32,30.64,73,32.4,20.15,10,3.21,1.21,0.7,1.75,1.6,6.95,15.7,4.51,5.79,PF/C,32.14
+Kawhi Leonard,TOR,,33,29.65,63,32.8,25.06,6.21,3.51,1.7,0.6,2.32,1.9,9.17,18,4.4,5,SF/PF,29.61
+Jalen Williams,OKC,,34,37.16,70,32.8,20.63,4.9,5.3,1.4,0.6,1.47,2,7.96,15.8,3.24,4,SG/SF/PF,39.21
+Evan Mobley,CLE,,35,35.89,66,33.3,18.92,9.8,3.61,0.89,1.7,0.97,2,7.47,13.39,3.02,4.5,PF/C,30.1
+Derrick White,BOS,,36,40.18,77,34.3,16.56,4.51,5.3,1.1,1.19,2.86,1.81,5.69,14.19,2.32,2.6,PG/SG,38.05
+Stephen Curry,GSW,DTD,37,31.38,66,32,25.79,4.2,5.3,1,0.39,4.56,2.8,8.48,18.7,4.26,4.61,PG,22.39
+Darius Garland,LAC,,38,48.89,69,35.2,21.62,3,7.41,1.3,0.2,2.93,3.1,7.84,17,3.01,3.51,PG,51.02
+Desmond Bane,ORL,,39,47.75,72,33.7,20.68,4.81,4.81,1.1,0.5,2.38,2.31,7.44,15.5,3.42,3.81,SG/SF,49.51
+Kon Knueppel,CHA,DTD,40,44.79,78,34.2,19.76,5.79,3.71,0.79,0.29,3.56,2.21,6.78,14.5,2.63,3,PG/SG/SF,52.87
+Jaylen Brown,PHI,,41,34.31,71,32.4,23.93,5.9,4.3,1.1,0.39,1.89,2.8,8.87,18.51,4.3,5.61,SG/SF,40.87
+LeBron James,PHI,,42,40.36,64,30.7,21.05,6.3,7,1,0.5,1.63,3,7.94,15.2,3.55,4.7,SF/PF,54.71
+De'Aaron Fox,SAS,,43,53.46,71,31.3,20.63,4,5.61,1.39,0.3,2.01,2.3,7.69,16.3,3.24,4.2,PG/SG,73.05
+Naz Reid,CHA,,44,49.38,76,31.7,16.59,7.39,2.61,1.11,1.2,2.57,1.89,6.28,13.7,1.47,2,PF/C,72.41
+Mikal Bridges,NYK,,45,53.2,82,33.6,15.2,3.7,3.7,1.2,0.7,1.95,1.2,6.05,12.4,1.15,1.4,SG/SF/PF,74.4
+Paolo Banchero,ORL,,46,41.58,69,35.2,23.42,7.9,5.2,0.8,0.59,1.43,3.1,7.99,17.51,6.01,8,PF,43.19
+Nickeil Alexander-Walker,ATL,,47,54.28,79,32.3,19.15,3.41,3.51,1.2,0.51,3.03,1.9,6.49,14.2,3.14,3.51,PG/SG/SF,55.47
+Michael Porter Jr.,BKN,,48,51.63,69,33.5,23.51,7.2,2.9,1,0.3,3.32,2.2,8.39,17.9,3.41,4,SF/PF,66.15
+Dyson Daniels,ATL,,49,58.84,75,32.4,11.73,6.51,5.6,2,0.4,0.37,1.71,5.19,10.11,0.99,1.6,PG/SG/SF,54.46
+Julius Randle,BKN,,50,59.2,72,34.3,22.04,8.1,5,0.69,0.19,1.57,3.1,7.82,16.4,4.83,6.1,PF,64.4
+Lauri Markkanen,UTA,,51,52.31,69,34,23.83,7.2,1.9,0.9,0.51,3.04,1.51,8.03,17.3,4.72,5.3,SF/PF,35.21
+Dejounte Murray,NOP,,52,70.04,68,32.4,19.53,5.4,6.4,1.5,0.29,2.09,2.79,7.38,16.5,2.68,3.29,PG/SG,54.46
+Stephon Castle,SAS,,53,52.23,72,32.7,18.14,5.6,7.6,1.19,0.31,1.32,3.4,6.21,13.4,4.4,6,PG/SG,62.65
+Jarrett Allen,CLE,,54,64.79,71,30.3,15.77,10,2.2,0.9,1,0,1.39,6.37,9.7,3.04,4.2,C,79.46
+Kyrie Irving,DAL,,55,53.97,59,34.6,24.58,4.8,4.8,1.31,0.51,2.85,2,9.14,18.8,3.46,3.8,PG/SG,47.68
+Tyler Herro,MIL,,56,63.99,67,34,22.54,5.1,4.7,0.81,0.3,2.9,2.19,8.15,17.1,3.34,3.7,PG/SG,65.72
+Zion Williamson,NOP,,57,63.41,64,30.9,22.84,6.09,4.3,1.09,0.7,0.06,2.5,8.73,15,5.31,7.59,SF/PF,79.92
+Franz Wagner,ORL,DTD,58,67.33,66,34,22.55,5.7,4.2,1.2,0.39,1.56,2.11,8.24,17.39,4.5,5.3,SF/PF,60.78
+Ty Jerome,MEM,,59,77.22,64,26.7,20.48,3.3,5.8,1.41,0.2,2.81,2,7.22,14.8,3.23,3.7,SG/SF,86.91
+Brandon Miller,CHA,,60,64.43,68,34,22.28,5.4,3.71,1.1,0.71,3.5,2.79,7.75,17.9,3.28,3.71,SG/SF/PF,43.57
+Damian Lillard,POR,,61,68.76,65,31.4,21.66,4,6.2,1,0.2,2.88,2.4,6.63,15.11,5.52,6,PG,76.95
+Onyeka Okongwu,ATL,,62,75.67,72,30.6,14.96,7.81,3,1.1,1,1.75,1.6,5.54,11.31,2.13,2.81,PF/C,51.37
+Keyonte George,UTA,,63,72.64,68,33.2,22.26,3.71,6.1,1,0.21,2.54,3.1,7.04,15.9,5.63,6.4,PG,58.73
+Trey Murphy III,NOP,,64,69.31,68,32.5,19.54,5.21,3.4,1.29,0.4,2.99,1.6,6.78,14.5,3,3.4,SG/SF/PF,33.66
+Norman Powell,CHI,,65,79.62,69,33.8,24.03,3.8,2.59,1.2,0.3,3.07,2.1,8.09,17.1,4.78,5.8,SG/SF,94.03
+Caleb Wilson,CHI,,66,71.91,71,32.1,17.92,8.1,1.9,1.1,1.39,0.73,2.1,6.7,13.7,3.77,4.9,PF,87.24
+Cameron Boozer,MEM,,67,73.1,72,31.7,18.51,7.9,3.1,1.1,0.81,0.33,2.5,7.19,14.6,3.79,4.81,PF,58.03
+Donovan Clingan,POR,,68,76.79,73,26.2,11.44,11.1,2,0.6,1.7,0.99,1.21,4.38,8.4,1.68,2.51,C,50.59
+Walker Kessler,LAL,,69,73.35,64,31.4,11.5,12.41,1.7,0.7,2.59,0.13,1.59,4.97,7.5,1.44,2.7,C,38.52
+Rudy Gobert,MIN,,70,77.29,72,32.5,11.93,11.69,1.6,0.69,1.69,0,1.4,4.71,7,2.51,4.19,C,68.11
+Chet Holmgren,OKC,DTD,71,64.71,65,28.9,16.51,8.4,2,0.6,2.11,1.4,1.6,6.06,11.31,2.98,3.8,PF/C,26.34
+Joel Embiid,PHI,,72,67.02,54,31.6,27.41,8.2,4.2,0.7,1.2,1.37,3,9.06,18.5,7.93,9.2,C,57.19
+Ivica Zubac,IND,,73,83.7,69,31.1,14.86,11.3,2.2,0.51,1.1,0,1.59,6.42,10.3,2.01,2.9,C,65.09
+Ja Morant,POR,,74,78.11,65,29.5,21.6,3.91,7.4,1.11,0.31,1.46,3.51,7.49,16.91,5.15,6.11,PG,82.54
+Brandin Podziemski,GSW,DTD,75,90.74,79,30.9,14.66,5.59,4,1.2,0.2,2.01,1.7,5.18,11.41,2.29,2.9,SG/SF,111.99
+Kel'el Ware,MIL,,76,89.77,72,26.6,12.97,10.6,0.9,0.9,1.31,1.32,1,5.28,9.9,1.1,1.5,PF/C,62.42
+VJ Edgecombe,PHI,,77,79.39,72,33.3,15.74,5.4,4,1.4,0.5,2,1.69,5.92,13.1,1.9,2.31,SG,85.47
+Alex Sarr,WAS,,78,87.52,66,28.6,16.5,7.61,2.8,0.8,2,1.21,1.8,6.58,14.11,2.14,3.11,PF/C,71.65
+Matas Buzelis,CHI,,79,86.94,74,30.5,16.68,6,2.09,0.7,1.59,2.31,2.09,5.96,12.91,2.45,3.09,SF/PF,58.65
+Miles Bridges,PHX,,80,92.53,71,33.1,19.14,6.7,3.39,0.7,0.51,2.1,1.8,7.1,15.7,2.85,3.39,SF/PF,105.01
+AJ Dybantsa,WAS,DTD,81,78.97,72,32.2,20.1,4.9,2.81,1,0.81,0.68,1.9,7.32,15.31,4.78,5.9,SF,95.33
+CJ McCollum,ATL,,82,96.85,73,30.2,19.11,3.4,3.9,0.79,0.51,2.64,1.79,7.04,15.51,2.38,3.1,PG/SG,104.29
+Coby White,CHA,DTD,83,100.39,72,33.5,20,4.1,4.81,0.69,0.19,2.78,2.5,6.78,15.1,3.67,4.31,PG/SG,91.01
+Jaren Jackson Jr.,UTA,,84,84.01,62,31.4,21.89,5.69,2.1,1.19,1.6,1.9,2.31,7.84,16.69,4.31,5.4,PF/C,41.09
+Dylan Harper,SAS,,85,79.72,72,29.3,15.08,4.4,5,1,0.5,1.22,1.9,6.07,12.31,1.72,2.19,PG/SG/SF,83.83
+Derik Queen,NOP,,86,100.08,76,26.4,12.59,7.39,3.89,1.11,1,0.39,2.5,4.66,9.7,2.88,3.61,PF/C,91.13
+DeMar DeRozan,DEN,,87,98.64,77,28.9,17.6,3,3.81,0.81,0.3,0.71,1.19,6.25,12.9,4.39,5.1,SF/PF,129.66
+Reed Sheppard,HOU,,88,104.42,76,26.7,13.47,3,3.39,1.5,0.7,2.78,1.5,4.95,11.61,0.8,1,PG/SG,126.41
+Fred VanVleet,HOU,,89,102.26,68,32.2,13.97,3.4,6,1.29,0.5,2.54,1.4,4.71,11.9,2.01,2.4,PG,107.17
+Payton Pritchard,BOS,,90,96.67,72,30.8,16.04,3.81,4.81,0.69,0.1,2.63,1.31,6,12.9,1.42,1.6,PG,82.4
+Jalen Green,PHX,,91,98.35,70,32.4,21.41,4.6,3.5,1.1,0.3,2.76,2.6,7.89,18.7,2.89,3.7,PG/SG,111.03
+Immanuel Quickley,TOR,,92,105.34,65,31.4,17.05,4,5.8,1.11,0.11,2.62,1.51,5.83,13.31,2.77,3.31,PG/SG,83.73
+OG Anunoby,NYK,,93,84.44,68,33.8,16.91,5.21,2.21,1.5,0.71,2.34,1.79,5.93,12.29,2.72,3.29,SF/PF,60.81
+Josh Hart,NYK,DTD,94,101.92,68,31.5,12.21,7.71,5,1.21,0.29,1.44,2,4.65,9.1,1.47,2,SG/SF,96.1
+Darius Acuff Jr.,SAC,,95,104.13,73,30.6,16.9,3.3,5.9,1.1,0.3,0.86,2.9,6.04,13.6,3.96,4.7,PG,121.64
+Jaden McDaniels,MIN,,96,96.69,74,31.7,14.18,4.41,2.5,1.09,1,1.38,1.7,5.49,10.8,1.82,2.2,SF/PF,80.12
+Ryan Rollins,MIL,,97,107.84,69,28,14.91,4,4.8,1.3,0.41,2.14,2.3,5.67,12,1.43,1.8,PG/SG,71.1
+Ayo Dosunmu,MIN,,98,115.28,72,29.4,15.26,3.6,3.9,0.9,0.31,1.83,1.5,5.81,11.31,1.82,2.1,PG/SG/SF,115.34
+Kristaps Porzingis,GSW,OUT,99,115.13,59,27.7,18.85,6.51,2.2,0.69,1.59,2,1.41,6.32,13,4.2,5,PF/C,124.71
+Kevin Porter Jr.,MIL,,100,116.23,66,26.8,14.08,4.3,5.7,1.7,0.39,0.98,2.39,5.12,11.11,2.85,3.3,PG/SG,122.32
+Nikola Vucevic,ORL,,101,116.52,72,25.1,13.76,7.69,2.69,0.6,0.6,1.21,1.19,5.71,11.4,1.14,1.4,C,185.12
+John Collins,DET,,102,112.85,68,30.6,16.37,7.71,1.29,0.79,0.9,1.44,1.71,6.31,11.71,2.31,2.9,SF/PF/C,108.94
+Ausar Thompson,DET,,103,101.07,70,26.8,10.4,6,3.1,2,1,0.11,1.6,4.36,8.3,1.57,2.7,SG/SF/PF,76.7
+RJ Barrett,TOR,,104,111.01,66,30.8,19.74,5.61,3.89,0.7,0.3,1.7,2.11,7.3,15.11,3.44,5,SG/SF/PF,115.95
+Andrew Wiggins,MIA,,105,114.83,67,30.4,15.66,4.81,2.7,1.1,1,2.04,1.51,5.79,12.3,2.03,2.6,SG/SF,108.65
+Tobias Harris,SAS,OUT,106,122.97,71,30.5,14.52,5.7,2.61,1,0.61,1.28,1.1,5.49,11.51,2.25,2.61,PF,195.1
+Egor Demin,BKN,,107,121.85,71,32.3,14.34,4.1,4.3,1,0.39,3.14,2.1,4.93,11.1,1.34,1.61,PG,127.94
+Darryn Peterson,UTA,,108,108.7,73,29.7,19.44,3.79,2.79,1.3,0.3,0.92,2.3,7.04,15.6,4.44,5.4,SG,110.83
+Paul George,BOS,,109,102.15,55,33.2,19.82,5.4,3.8,1.71,0.51,2.93,2.11,7.02,15.51,2.85,3.31,SF/PF,73.34
+Brandon Ingram,LAC,OUT,110,117.4,55,35.3,22.56,5.71,4.8,0.8,0.71,1.75,2.8,8.45,17.6,3.91,4.8,SG/SF/PF,94.46
+Jeremiah Fears,NOP,,111,122.28,77,26.4,15.09,3.81,3.51,1.19,0.4,1.35,2.19,5.61,12.6,2.52,3.1,PG,132.94
+Nic Claxton,CHI,OUT,112,127.7,69,27.8,11.55,7.1,3.41,0.7,1.2,0.06,1.41,4.81,8.41,1.87,3.1,C,106.96
+Jakob Poeltl,TOR,,113,128.62,66,27,12.05,8.39,2.39,0.89,1.11,0,1.61,5.32,8.11,1.41,2.3,C,124.44
+Jaime Jaquez Jr.,MIL,,114,124.66,74,27.3,14.36,4.91,4.3,0.7,0.3,0.76,1.91,5.73,11.41,2.15,2.8,SG/SF/PF,124.4
+Collin Gillespie,PHX,,115,130.17,73,26.8,11.92,3.9,4.4,1.21,0.21,2.74,1.4,4.15,9.9,0.88,1,PG,167.01
+Keegan Murray,SAC,,116,123.88,71,34.1,13.83,6,1.61,0.9,1,2.04,0.9,5.32,12,1.14,1.39,SF/PF,106.63
+Peyton Watson,CLE,,117,125.69,71,30.7,14.24,5,2.1,0.9,1.3,1.44,1.61,5.17,10.61,2.46,3.39,SG/SF/PF,119.3
+Zach Edey,MEM,,118,117.91,62,26.4,12.73,10.81,1.19,0.69,1.81,0.21,2.1,5.24,8.6,2.03,2.69,C,71.81
+Quentin Grimes,LAL,,119,130.17,73,30.8,14.92,4.21,3.4,1,0.4,2.07,1.9,5.14,11.3,2.58,3.21,SG/SF,158.38
+Cedric Coward,MEM,,120,127.93,69,28.5,15.36,6.51,3,0.7,0.51,1.7,1.9,5.54,11.51,2.59,3,SG/SF,105.79
+Jabari Smith Jr.,HOU,,121,120.97,73,32.1,14.14,6.79,1.6,0.6,0.79,2.03,1.21,5.07,11.3,1.97,2.51,SF/PF/C,92.68
+Myles Turner,MIL,,122,126.65,71,27.4,12.42,5.51,1.51,0.7,1.7,2.08,1.3,4.2,9.39,1.94,2.61,C,90.37
+Collin Sexton,LAL,DTD,123,134.94,70,25.8,17.33,2.5,4.1,0.9,0.2,1.69,2.2,6.06,12.5,3.53,4.1,PG/SG,212.34
+Andrew Nembhard,IND,,124,131.22,71,30.7,12.59,3,5.9,1.1,0.1,1.21,2,4.72,10.2,1.94,2.39,PG/SG,134.69
+Oso Ighodaro,PHX,DTD,125,138.4,79,27.6,7.92,6.3,2.7,1.1,0.9,0,1.51,3.57,5.51,0.78,1.7,PF/C,227.18
+Daniel Gafford,DAL,,126,136.87,68,22.5,10.69,7.1,1.29,0.71,1.71,0,1.1,4.35,6.29,1.99,2.9,C,198.07
+Kyshawn George,WAS,,127,133.72,66,29.4,13.98,5.11,4.2,1,0.89,2.06,2.39,4.97,11.61,1.98,2.5,SG/SF/PF,126.75
+Neemias Queta,BOS,,128,135.29,72,23.6,9.47,7.69,1.5,0.69,1.19,0.01,0.9,3.99,6.1,1.49,2.1,C,106.62
+Isaiah Hartenstein,OKC,,129,131.29,64,25,9.47,9.59,3.5,1,0.8,0,1.7,4.05,6.59,1.38,2.2,C,99.16
+Zach LaVine,SAC,,130,124.13,61,32.8,20.51,3.8,3.39,0.7,0.2,2.75,2.3,7.31,14.9,3.13,3.7,PG/SG/SF,108.88
+Anthony Black,ORL,DTD,131,137.38,69,28.9,13.83,3.7,3.51,1.41,0.7,1.39,2,4.97,11.2,2.49,3.41,PG/SG,153.43
+Scotty Pippen Jr.,MEM,,132,138.14,63,25.1,12.44,3.4,5.3,1.79,0.51,1.27,2.51,4.62,9.9,1.94,2.6,PG,199.6
+Ace Bailey,UTA,,133,130.74,72,28.2,14.63,4.31,1.9,0.9,0.69,2.08,1.5,5.78,12.69,0.99,1.31,PG/SG/SF/PF,139.25
+Julian Champagnie,SAS,,134,135.1,82,26.7,10.78,5.4,1.5,0.7,0.5,2.32,0.8,3.55,8.2,1.37,1.6,SF/PF,220.31
+Jrue Holiday,POR,DTD,135,136.52,68,28.2,12.19,4.4,4.5,0.9,0.4,1.93,1.79,4.57,10,1.12,1.29,PG/SG,164.62
+Aaron Gordon,DEN,,136,130.65,66,29.3,15.55,5.5,3.11,0.5,0.3,1.52,1.3,5.45,10.5,3.12,4,PF/C,131.95
+Brook Lopez,LAC,,137,139.9,72,26.2,10.63,4.31,1.5,0.6,1.69,1.61,0.9,3.94,8.31,1.13,1.4,C,224.1
+Malik Monk,SAC,DTD,138,140.87,68,26.2,14.85,2.79,4.5,0.71,0.5,2.06,2,5.37,12.21,2.06,2.4,PG/SG,236.75
+Day'Ron Sharpe,BKN,,139,137.88,69,22,9.71,8.41,2.2,0.9,1,0.22,1.59,4.01,7.51,1.46,2.1,C,97.85
+Dillon Brooks,PHX,,140,132.14,69,30.7,18.58,3.59,1.7,1,0.2,2.28,1.59,6.86,15.8,2.59,3.1,SG/SF/PF,174.1
+Devin Vassell,SAS,,141,135.57,69,27.5,14.3,3.51,2.7,0.9,0.41,2.14,1.1,5.28,11.7,1.61,2,SG/SF,130.26
+Mitchell Robinson,BOS,,142,135.95,61,25.4,7.34,11.1,1.1,1.2,1.51,0,0.9,3.21,4.51,0.92,2.2,C,174.67
+Keldon Johnson,SAS,,143,140.62,77,25.1,13.65,5.19,1.81,0.6,0.19,1.34,1.1,5.13,10.51,2.05,2.6,SG/SF,234.03
+Saddiq Bey,NOP,,144,138.99,71,27.1,14.73,4.9,2.1,0.8,0.1,1.76,0.8,5.06,11.3,2.86,3.39,SF/PF,136.98
+Jerami Grant,MEM,DTD,145,140.42,68,29.4,17.62,3.4,2.1,0.71,0.71,2.28,1.9,5.54,12.5,4.25,5.21,SF/PF,205.13
+Cason Wallace,OKC,DTD,146,137.53,76,26.4,8.42,3.11,2.5,1.89,0.39,1.28,0.89,3.25,7.39,0.64,0.8,PG/SG/SF,116.09
+Jake LaRavia,LAL,,147,141.07,77,29.2,9.65,4.7,2.19,1.4,0.51,1.13,1.3,3.43,7.51,1.66,2.19,PF,238.48
+Draymond Green,GSW,,148,136.87,64,27.9,8.69,6.09,5.7,1.09,0.8,1.25,2.59,3.16,7.2,1.13,1.59,PF/C,165.14
+Kyle Filipowski,UTA,DTD,149,141.16,73,22,10.66,6.7,2.4,0.9,0.51,0.92,1.51,3.95,8,1.85,2.51,PF/C,220.11
+Davion Mitchell,MIA,,150,139.8,71,27.7,8.92,2.51,6,0.9,0.2,1.23,1.51,3.55,7.3,0.59,0.9,PG,158.63
+Jalen Suggs,ORL,,151,136.34,62,26.3,13.21,3.4,4,1.5,0.69,2,2.31,4.69,10.69,1.82,2.19,PG,97.79
+Toumani Camara,POR,,152,139.45,75,29.4,10.67,5,2,1.11,0.51,1.8,1.4,3.89,8.71,1.08,1.51,PF/C,116.8
+Dereck Lively II,DAL,DTD,153,141.2,65,23.6,8.85,7.2,1.6,0.6,1.51,0,1,3.94,5.4,0.97,1.71,C,223.5
+Cameron Johnson,DEN,,154,140.58,68,28.8,13.16,3.9,2.5,0.79,0.4,2.18,1,4.51,9.6,1.96,2.29,SF/PF,153.75
+Jusuf Nurkic,UTA,OUT,155,141.41,64,23.1,9.44,9.09,3.41,1,0.7,0.45,2,3.66,7.3,1.67,2.7,C,130.2
+Jonathan Kuminga,MIN,,156,136.83,67,27.3,15.12,6.19,2.6,0.81,0.4,1.1,2.1,5.48,11.7,3.06,4.3,PF/C,172.36
+Danny Wolf,BKN,,157,141.46,71,24.1,11.54,5.7,2.61,0.61,0.61,1.44,1.51,4.2,8.9,1.7,2.2,PF/C,241.95
+Tre Jones,CHI,,158,141.4,68,22.3,11.13,2.6,4.5,1,0.1,0.51,1.1,4.18,7.6,2.26,2.71,PG,172.08
+Isaiah Stewart,MEM,OUT,159,141.37,69,24.7,10.33,5.7,1.41,0.3,1.7,0.71,1.2,3.94,7.2,1.74,2.3,PF/C,228.16
+P.J. Washington,DAL,,160,140.42,64,29,13.19,6.59,1.7,0.91,1,1.33,1.59,4.89,10.91,2.08,3,SF/PF/C,134.76
+Precious Achiuwa,SAC,,161,141.47,71,24.3,9.94,6.8,1.39,0.9,0.7,0.37,0.9,4.25,8.1,1.07,1.9,PF/C,238.33
+Mikel Brown Jr.,BKN,,162,140.88,71,30.2,15.93,2.51,3.39,1.3,0.2,0.7,2.39,5.69,13.51,3.85,4.8,PG,179.28
+T.J. McConnell,IND,DTD,163,141.26,70,17.8,9.43,2.5,4.9,1,0.2,0.24,1.4,4.29,8,0.61,0.8,PG,241.72
+Keaton Wagler,LAC,,164,140.73,70,28.1,13.33,3.1,4.3,1,0.2,0.57,2.3,5.07,11.1,2.61,3.1,SG,195.19
+Bennedict Mathurin,NOP,,165,140.56,68,29.2,16.53,5.1,2.1,0.71,0.29,1.37,2,5.37,12.1,4.43,5.21,SG/SF,189.4
+Rui Hachimura,LAC,,166,136.8,71,30.6,13,4.1,1.1,0.7,0.39,1.77,0.7,5.07,9.8,1.08,1.51,PF,177.9
+Bobby Portis,MIA,,167,140.85,65,24.3,13.65,6.71,1.6,0.6,0.2,1.86,1,5.49,11.31,0.8,1.11,PF/C,205.43
+Moussa Diabate,CHA,DTD,168,141.02,70,24.6,7.5,8.3,1.7,0.7,0.9,0,1,3,4.8,1.5,2.3,C,141.75
+Jamal Shead,TOR,,169,141.31,81,23.3,7.07,1.8,5.51,1,0.2,1.06,1.51,2.46,6.6,1.1,1.4,PG,241.46
+Grayson Allen,CHA,DTD,170,141.41,63,26.1,14.05,2.9,3.21,1.1,0.3,2.73,1.4,4.51,10.9,2.3,2.7,PG/SG/SF,161.66
+Tim Hardaway Jr.,MIA,,171,141.01,80,26.9,13.28,2.6,1.4,0.5,0.1,2.71,0.6,4.3,9.8,1.96,2.4,SG/SF,237.62
+Scoot Henderson,POR,,172,140.82,66,27,14.42,2.89,4.5,1,0.3,1.85,2.7,4.89,11.8,2.79,3.39,PG,217.5
+Yaxel Lendeborg,GSW,,173,126.07,71,24.6,10.61,5.1,2.2,1,0.8,0.27,1.51,4.14,8.8,2.06,2.61,SF,125.47
+Morez Johnson Jr.,DAL,,174,141.2,71,24.7,10.61,5.61,1.61,0.8,0.9,0.27,1.1,4,8.1,2.34,3.1,PF,207.72
+Alex Caruso,OKC,,175,139.37,69,24.3,8.38,3.59,2.7,1.7,0.51,1.3,1.1,3.06,7.1,0.96,1.2,PG/SG/SF,236.47
+Wendell Carter Jr.,ORL,,176,141.16,72,25.4,9.97,6.69,1.81,0.69,0.5,0.81,1.1,3.6,7.19,1.97,2.6,C,175.74
+Walter Clayton Jr.,MEM,,177,141.16,71,25.1,10.52,2.51,5,0.8,0.3,1.61,2.1,3.46,8.2,1.99,2.2,PG,243.73
+Dennis Schroder,CHA,,178,141.12,72,24.7,11.17,2.5,4.9,0.69,0.19,1.33,1.69,3.88,9.31,2.08,2.5,PG/SG,240.25
+Yves Missi,NOP,,179,141.22,67,25.1,7.54,7.51,1.6,0.4,1.81,0,1,3.16,5.81,1.21,2.1,PF/C,205.37
+Santi Aldama,DAL,DTD,180,141.23,66,23.7,11.02,5.61,2.39,0.7,0.61,1.56,1,4.2,9,1.06,1.61,PF/C,229.27
+Bub Carrington,WAS,,181,141.01,82,25.1,9.49,3.1,4.1,0.6,0.2,1.79,2,3.4,8.1,0.89,1.2,PG,242.19
+Isaiah Collier,UTA,,182,141.06,67,22.7,9.85,2.4,6.19,1,0.3,0.42,2.3,3.67,7.6,2.09,2.9,PG/SG,234.25
+Duncan Robinson,DET,,183,141.01,76,26.2,11.7,2.5,2.11,0.61,0.2,2.72,0.8,3.99,8.8,1,1.3,SG/SF,234.11
+Collin Murray-Boyles,TOR,,184,138.34,66,22.9,9.18,5.2,1.89,1,1,0.3,1.11,3.77,6.3,1.33,2,PF/C,101.57
+Deandre Ayton,WAS,,185,140.84,64,23.8,11.47,7.59,1,0.59,0.7,0.03,1.2,5.23,8.59,0.97,1.41,C,219.21
+Royce O'Neale,CHA,,186,141.14,76,24.5,8.47,4.2,2.3,0.89,0.39,2.32,1.11,2.93,7,0.29,0.39,SF/PF,242.68
+Max Christie,DAL,,187,141.07,77,28.2,11.53,3.19,1.9,0.6,0.4,2.12,1.19,3.91,8.9,1.6,1.81,SG/SF,235.18
+GG Jackson,MEM,DTD,188,140.99,69,23,13.22,4.51,1.51,0.59,0.8,1.3,1.59,4.88,10.1,2.14,2.9,SF/PF,241.97
+Robert Williams III,POR,,189,140.95,59,20,7.53,7.8,1.2,0.69,1.69,0.15,1,3.32,4.8,0.73,1.1,C,233.28
+Jaylon Tyson,CLE,,190,141.01,62,26.7,12.92,5.1,2.19,0.81,0.4,1.95,1.5,4.89,10,1.19,1.6,SG/SF,234.49
+Kyle Kuzma,MIL,,191,140.96,68,25.7,13.03,4.6,2.6,0.6,0.4,1.22,1.79,4.94,10.29,1.93,2.71,SF/PF,232.15
+Kingston Flemings,ATL,,192,140.75,71,24.8,10.92,2.8,3.7,1.2,0.51,0.37,2.1,4.2,9.7,2.15,2.7,PG,239.31
+Brayden Burries,MIL,,193,140.77,71,25.8,10.97,2.7,4.1,1.1,0.3,0.42,2.1,3.96,8.8,2.63,3.2,SG,229.05
+Kevin Huerter,DET,,194,140.85,69,23.6,10.32,3.51,2.59,0.9,0.51,1.58,1.1,3.99,8.9,0.77,1,SG/SF,244.18
+Aaron Nesmith,IND,DTD,195,141.09,64,28.2,13.06,4.09,1.5,0.8,0.5,2.09,1,4.59,9.7,1.78,2.09,SF/PF,194.72
+Ryan Kalkbrenner,CHA,,196,140.8,69,23.2,7.62,5.9,0.8,0.51,1.59,0,1,3.16,4.59,1.3,1.8,C,238.6
+Naji Marshall,DAL,,197,140.96,70,24.2,11.44,4.1,2.6,0.9,0.1,0.8,1.3,4.31,8.6,2.01,2.6,SG/SF/PF,224.15
+Bilal Coulibaly,WAS,,198,140.91,68,24,10.25,3.9,2.29,1.21,0.79,1,1.4,3.62,8.5,2.01,2.71,SG/SF/PF,213.73
+De'Anthony Melton,GSW,,199,140.81,65,23.1,12.15,3.2,2.6,1.6,0.4,1.49,1.8,4.34,10.71,1.98,2.4,PG/SG,229.08
+Kelly Oubre Jr.,IND,,200,140.81,67,26.3,12.24,4.4,1.3,1.1,0.51,1.19,1.1,4.54,9.9,1.97,2.6,SF/PF,214.16
+De'Andre Hunter,SAC,,201,141.02,65,27.6,15.48,4,1.71,0.71,0.2,2.06,1.51,5.22,11.6,2.98,3.51,SF/PF,236.26
+Sam Hauser,BOS,,202,140.73,77,25.3,9.61,3.9,1.4,0.51,0.3,2.62,0.4,3.36,7.9,0.26,0.3,SF/PF,242.99
+Anfernee Simons,PHI,DTD,203,140.84,66,25.1,14.73,2.3,3,0.5,0.11,2.53,1.39,5.29,12.2,1.62,1.8,PG/SG,240.16
+Nolan Traore,BKN,,204,140.57,71,25,11.06,2,4.3,0.9,0.51,1.37,2.61,4.08,9.61,1.52,1.9,PG,244.11
+Tari Eason,HOU,,205,140.87,66,24.9,10.38,6.11,1.39,1.2,0.5,1.42,1.3,4.02,9.39,0.92,1.2,SF/PF,142.88
+Luguentz Dort,ATL,,206,140.71,72,28.1,9.58,3.81,1.4,1,0.5,2.11,0.81,3.35,8,0.78,1,SG/SF/PF,241.98
+Jimmy Butler III,GSW,OUT,207,138.26,39,32.4,19.41,5.41,5.1,1.41,0.31,0.82,1.51,6.13,12.1,6.33,7.41,SF/PF,193.27
+Christian Braun,DEN,,208,140.98,65,27.5,10.94,4.2,2.31,0.71,0.31,0.88,0.8,4.2,7.91,1.66,2.11,SG/SF,173.66
+Max Strus,LAC,OUT,209,140.56,67,25.9,9.85,4,3.19,0.7,0.3,2.04,1.19,3.51,8.3,0.79,1,SG/SF,237.76
+Kris Dunn,LAC,,210,140.63,75,22,5.99,2.91,3.11,1.4,0.31,0.83,1.11,2.36,5.11,0.44,0.6,PG/SG,240.55
+Nique Clifford,SAC,,211,140.6,72,27.4,9.86,4.1,2.6,1,0.31,1.15,1.69,3.83,8.69,1.04,1.4,SG/SF,228.19
+Vit Krejci,POR,,212,140.47,65,25.7,8.71,3.31,3.11,0.8,0.51,1.91,1.11,3.08,6.2,0.65,0.91,PG/SG/SF,244.16
+Brice Sensabaugh,UTA,,213,140.7,72,21.6,13.38,2.9,1.69,0.69,0.1,2.01,1.5,4.72,10.31,1.92,2.31,SF/PF,242.1
+Jalen Smith,CHI,,214,140.7,66,19.5,9.79,6.39,1.2,0.39,0.8,1.42,0.89,3.55,7.3,1.27,1.7,PF/C,224.73
+Tre Johnson,WAS,,215,140.49,68,25.3,13.4,3,2.1,0.6,0.29,2.04,1.6,5.01,11.4,1.32,1.5,PG/SG,241.8
+Jordan Poole,NOP,,216,140.1,66,22.1,13.23,2,3.2,0.8,0.3,2.05,1.89,4.55,11.11,2.09,2.39,PG/SG,237.78
+Isaiah Joe,DET,,217,140.61,72,21.1,10.75,2.5,1.4,0.69,0.19,2.53,0.6,3.44,7.6,1.33,1.5,PG/SG,238.39
+Khaman Maluach,PHX,,218,140.34,65,23,7.78,7.51,0.31,0.31,1.91,0.4,1.4,3.08,5.91,1.23,1.71,C,148.23
+Derrick Jones Jr.,LAC,,219,140.59,68,25.4,9.71,3.4,1.1,0.9,0.79,1.06,0.79,3.66,7.29,1.32,1.79,SF/PF,241.47
+Luke Kennard,PHX,DTD,220,140.39,74,21.8,8.54,2.41,2.41,0.7,0.09,1.55,0.8,3.08,5.91,0.82,0.91,PG/SG,243.28
+Al Horford,GSW,,221,140.38,56,25.4,8.7,5.8,2.39,0.61,1,1.75,0.8,3.21,7.11,0.52,0.61,PF/C,243.33
+Gradey Dick,LAC,,222,140.18,72,25.8,11.24,3.4,1.31,1,0.19,1.49,1.1,3.96,9.5,1.83,2.1,SG/SF,243.52
+Jared McCain,OKC,,223,139.02,69,24.7,12.06,2.9,2,0.7,0.1,2.12,1.2,4.41,10.3,1.13,1.3,SG,222.42
+Herbert Jones,NOP,,224,140.51,63,27.1,8.62,3.21,2.6,1.51,0.51,1.32,1.21,3.16,8,0.98,1.21,SG/SF/PF,194.59
+Aaron Wiggins,ATL,,225,140.48,72,20.3,10.14,3.31,1.5,0.69,0.19,1.43,0.9,3.94,8.1,0.82,1,SG/SF,240.4
+Ajay Mitchell,OKC,,226,139.98,55,23.5,12.16,3,3.31,1.11,0.31,0.98,1.31,4.51,9.31,2.16,2.51,PG/SG/SF,119.25
+Baylor Scheierman,BOS,,227,140.4,72,25.1,7.51,4.69,2,0.81,0.1,1.69,0.81,2.64,5.9,0.54,0.6,SG/SF,243.2
+Bradley Beal,LAC,OUT,228,140.57,54,25.3,13.56,2.91,3.3,0.8,0.41,1.5,1.7,5.22,10.41,1.61,2,SG,240.05
+Isaiah Jackson,LAC,,229,140.7,67,18.4,7.55,5.9,1.1,0.7,1,0,1.19,3.06,4.81,1.43,2.19,C,206.07
+Zaccharie Risacher,DAL,,230,140.79,68,22.8,10.1,3.79,1.21,0.9,0.5,1.47,0.9,3.82,8.4,0.99,1.5,SF,225.55
+Obi Toppin,IND,,231,140.47,63,20,10.59,4,1.7,0.6,0.4,1.35,0.9,4.06,7.51,1.11,1.4,PF/C,240.88
+Kasparas Jakucionis,MIL,,232,140.39,68,22.6,8.04,3.29,3.29,0.79,0.21,1.51,1.21,2.57,5.71,1.38,1.6,SG,243.75
+Jaylen Wells,MEM,,233,140.53,71,25,11.58,3.1,1.51,0.8,0.1,1.76,1,4.04,9.39,1.73,2.2,SG/SF,232.2
+Klay Thompson,MIA,,234,139.13,70,23,12.4,2.3,1.5,0.5,0.3,2.97,1,4.39,11,0.66,0.8,SG/SF,234.86
+Ryan Dunn,PHX,,235,140.37,71,22.6,7.04,4.8,1.61,1,0.51,0.99,0.9,2.83,6.3,0.39,0.8,SF/PF,244.21
+Nikola Jovic,MIA,,236,139.92,71,22.9,9.68,4.2,2.8,0.7,0.39,1.35,1.7,3.28,8.51,1.76,2.51,PF/C,243.4
+Jaylin Williams,OKC,DTD,237,140.13,67,19,6.91,5.4,2.4,0.51,0.6,1.46,1,2.21,5.19,1.03,1.3,PF/C,242.21
+Marvin Bagley III,DEN,,238,140.46,61,19.1,9.95,5.8,1.3,0.39,0.7,0.36,1,4.03,6.61,1.52,2.3,PF/C,243.72
+Jordan Walsh,BOS,,239,140.28,71,21.5,6.35,4.8,1,0.9,0.61,0.86,0.61,2.37,4.7,0.76,1,PF,243.72
+Tristan da Silva,ORL,,240,140.39,77,21.4,8.34,3.19,1.4,0.7,0.3,1.32,0.81,3.06,6.9,0.88,1,SF/PF,243.08
+Keon Ellis,BKN,,241,140.41,72,21,6.97,2,1.1,1.19,0.69,1.36,0.6,2.43,5.4,0.75,1,PG/SG,234.98
+Gui Santos,GSW,,242,140.64,66,23.9,7.39,5.39,2.39,0.8,0.3,1.08,1.3,2.65,5.7,1.02,1.39,SF/PF,176.9
+AJ Green,MIL,,243,140.27,76,25.4,9.01,2.39,1.7,0.5,0.11,2.55,0.8,2.93,6.89,0.59,0.7,PG/SG/SF,242.71
+Paul Reed,DET,,244,140.44,63,13.8,7.43,4.4,1.21,0.9,0.9,0.19,0.9,3.08,5.1,1.08,1.6,C,169.72
+Jose Alvarado,NYK,,245,140.16,66,20.4,7.82,2.5,3.5,1,0.11,1.52,1.2,2.85,6.89,0.61,0.8,PG,243.45
+Jeremy Sochan,FA,,246,140.28,66,21.3,8.55,4.89,2.2,0.7,0.39,0.56,1.3,3.44,7.2,1.11,1.5,PF,
+Miles McBride,NYK,,247,140.3,65,22.2,9.71,2.11,2.2,0.8,0.2,2.15,0.6,3.42,8.11,0.72,0.91,PG/SG,243.28
+Ziaire Williams,LAL,,248,140.3,65,23,10.12,2.8,1.11,1.31,0.4,1.54,1.11,3.28,7.8,2.03,2.4,SG/SF,244.05
+Ronald Holland II,DET,,249,140.28,79,18.5,7.65,3.59,1.2,1,0.3,0.57,1.1,2.82,6.41,1.43,1.8,SF/PF,
+Marcus Smart,HOU,,250,140.35,62,24.4,9.18,2.4,3,1.31,0.31,1.48,1.6,3.05,7.6,1.6,2,PG/SG,237.81
+Harrison Barnes,SAS,,251,140.27,80,20.5,8.65,2.4,1.2,0.5,0.1,1.4,0.5,2.98,6.2,1.3,1.6,SF/PF,243.75
+Terance Mann,BKN,,252,140.26,71,23.8,7.32,3.1,2.7,0.7,0.2,0.87,1,2.76,5.9,0.93,1.2,PG/SG/SF,244.25
+Andre Drummond,NYK,,253,140.25,60,19.4,6.65,8.4,1.2,0.7,0.7,0.42,1,2.65,5.5,0.93,1.5,C,236.23
+Hannes Steinbach,CHA,,254,140.34,71,17.9,7.07,4.1,1.1,0.7,0.9,0.2,0.9,2.79,5.9,1.3,1.7,PF,231.69
+Sam Merrill,CLE,DTD,255,140.21,62,23,10.6,2.31,2,0.6,0.1,2.6,0.69,3.56,7.9,0.87,1,SG/SF,239.61
+Ja'Kobe Walter,TOR,,256,140.25,69,21.6,8.03,2.8,1.3,1,0.2,1.57,0.59,2.68,6.1,1.1,1.41,PG/SG,238.03
+Luke Kornet,SAS,,257,140.12,71,15.6,4.99,4.39,1.3,0.39,0.8,0,0.3,2.06,3.1,0.87,1.1,C,242.34
+Clint Capela,HOU,,258,140.2,62,16.8,6.63,6.69,0.9,0.5,0.9,0,0.69,2.84,5.1,0.95,1.6,C,
+Kentavious Caldwell-Pope,PHI,,259,140.11,68,23.6,7.74,2,1.9,1,0.29,1.22,0.79,2.72,6.21,1.07,1.21,SG/SF,243.93
+Trayce Jackson-Davis,TOR,,260,140.16,65,15.9,6.83,4.91,1.4,0.4,0.8,0,0.71,2.89,4.6,1.05,1.91,C,243.87
+Caris LeVert,MIL,,261,140.15,61,20.7,8.54,2.3,2.9,0.9,0.61,1.13,1.39,3.11,7.3,1.18,1.7,SG/SF,244.27
+Hugo Gonzalez,BOS,,262,140.16,74,21.7,5.77,4.91,0.8,0.8,0.41,0.84,0.8,2.34,4.91,0.26,0.5,SG/SF/PF,240.9
+Matisse Thybulle,LAL,,263,140.19,59,19.1,5.86,2.2,1.2,1.9,0.59,1.25,0.8,2.03,4.8,0.54,0.69,SG/SF,241.39
+Rob Dillingham,FA,DTD,264,140.08,68,20.5,8.6,2.71,3.1,1,0.1,0.88,2.1,3.46,8.71,0.81,1.1,PG,
+Goga Bitadze,ORL,,265,140.13,65,13.3,5.03,4.31,1.2,0.51,0.91,0.03,0.6,2.05,3.11,0.91,1.31,C,244.07
+Kyle Anderson,TOR,,266,140.1,62,17.7,5.45,3.1,2.9,0.81,0.5,0.19,0.81,2.16,4.5,0.94,1.31,SF/PF,244.23
+Khris Middleton,WAS,,267,140.15,53,20.3,10.09,3.4,3.21,0.7,0.21,1.11,1.6,3.72,8.09,1.55,1.79,SF/PF,244.13
+Simone Fontecchio,MIA,,268,140.1,71,17.1,8.2,3,1.39,0.51,0.1,1.63,0.7,2.69,6.51,1.18,1.39,SF/PF,244.16
+Corey Kispert,ATL,,269,140.12,65,20.3,9.86,2.4,1.6,0.31,0.2,1.62,0.8,3.45,7.4,1.35,1.71,SG/SF/PF,244.04
+Olivier-Maxence Prosper,MEM,,270,140.09,64,17.1,8.88,3.3,0.91,0.7,0.2,0.98,0.8,3.2,6,1.48,2,PF,244.14
+Jamal Cain,ORL,,271,140.09,69,19.3,8.29,3.1,1.1,0.59,0.2,1.07,0.8,2.88,6.1,1.45,1.8,SF,
+Noah Clowney,BKN,,272,140.14,69,19.6,8.8,3.1,1.1,0.51,0.51,1.42,1.1,2.72,6.9,1.93,2.41,PF/C,239.42
+Bogdan Bogdanovic,HOU,,273,140.1,65,17.6,8.75,2.11,1.91,0.6,0.2,1.58,0.91,3.09,7.31,0.98,1.11,SG/SF,243.8
+Bones Hyland,MIN,,274,139.96,62,16.2,8.34,1.69,2.6,0.6,0.19,1.63,1,2.92,6.5,0.87,1.1,PG,243.62
+Adem Bona,PHI,DTD,275,140.1,69,17.2,4.93,4.3,0.51,0.41,1.2,0.03,0.8,1.88,3.1,1.13,1.59,C,242.55
+Jaxson Hayes,UTA,,276,140.15,64,16.8,6.34,3.91,0.8,0.5,0.7,0.03,0.59,2.58,3.5,1.16,1.8,C,243.56
+Larry Nance Jr.,IND,,277,140.07,62,17.8,5.9,4.19,1.5,0.81,0.31,0.73,0.69,2.34,4.5,0.5,0.69,PF,
+Buddy Hield,CHI,,278,140.14,62,18.2,8.73,2.5,1.5,0.81,0.19,1.76,1,3.19,7.4,0.58,0.69,PG/SG/SF,243.66
+Jarace Walker,IND,DTD,279,140.15,63,18.6,7.71,3.6,1.79,0.7,0.3,1.21,1.21,2.75,6.3,1.02,1.4,SF/PF,242.02
+Isaac Okoro,CHI,DTD,280,140.07,68,21.6,7.38,2.29,1.29,0.6,0.4,0.94,0.6,2.68,5.79,1.09,1.4,SG/SF,243.95
+Cody Williams,MIN,,281,140.07,64,22.8,7.92,2.7,1.91,0.7,0.41,0.42,1,3.19,7,1.13,1.59,SG,244.11
+Patrick Williams,CHI,,282,140.06,72,20,6.89,2.9,1.4,0.69,0.4,1.25,1,2.46,6.5,0.72,1,SF/PF,244.29
+Terrence Shannon Jr.,MIN,,283,140.08,69,20.7,9.23,2,1.51,0.51,0.1,1.17,0.9,2.99,6.59,2.09,2.59,SG/SF/PF,243.61
+Tristan Vukcevic,WAS,OUT,284,140.07,61,13.8,9,3.1,1.1,0.51,0.7,1.02,1.3,3.13,6.51,1.72,2.2,PF,
+Grant Williams,CHA,DTD,285,140.07,63,19.4,6.89,3.7,1.51,0.51,0.51,1.35,0.9,2.21,5.1,1.13,1.4,PF,
+Trey Lyles,MIN,,286,140.05,64,19.7,6.89,4.5,1.2,0.5,0.3,1.3,0.59,2.38,5.5,0.84,1.2,PF,
+Kevon Looney,LAL,,287,140.05,65,15.4,4.23,5.8,1.71,0.51,0.4,0.02,0.6,1.77,3.31,0.68,1.11,C,243.96
+Landry Shamet,NYK,,288,139.99,67,20.8,8.39,1.6,1.19,0.6,0.19,1.79,0.6,2.87,6.51,0.87,1.19,SG,243.9
+Mouhamed Gueye,ATL,DTD,289,140.06,70,15.4,4.56,3.6,0.9,0.8,0.5,0.51,0.4,1.76,3.9,0.53,0.8,PF,
+Jordan Clarkson,NYK,,290,140.05,66,19,9.59,2,1.7,0.5,0.11,1.12,1.11,3.58,8.11,1.32,1.61,SG/SF,243.98
+Kris Murray,MEM,,291,140.07,68,21.9,5.6,3.4,1.29,0.79,0.4,0.57,0.79,2.19,4.79,0.65,1,PF,
+Gary Trent Jr.,MIL,,292,140.07,67,22.3,8.93,1.3,1.19,0.6,0.1,2.01,0.6,3.1,7.81,0.7,0.9,SG/SF,243.91
+Tyus Jones,DEN,,293,140.08,69,17.5,4.7,1.41,3.1,0.59,0.1,0.88,0.51,1.78,4.51,0.25,0.3,PG,244.17
+Dean Wade,PHI,DTD,294,140.01,58,21.5,5.55,4.1,1.21,0.71,0.4,1.33,0.29,1.91,4.5,0.4,0.6,PF,243.87
+Nate Ament,MIL,DTD,295,140.04,70,17.7,5.66,3.6,0.7,0.7,0.8,0.19,1.1,2.31,5.4,0.84,1.2,SF,243.52
+Thomas Bryant,CLE,,296,140.02,68,12.6,6.19,3.5,0.6,0.29,0.5,0.74,0.5,2.28,4.5,0.9,1.1,C,244.21
+Liam McNeeley,CHA,,297,140.05,64,19.5,7.28,3.91,1.3,0.3,0.2,1.06,0.7,2.27,5.09,1.69,2.09,SF,244.12
+Jarred Vanderbilt,LAL,DTD,298,140.05,62,17.6,4.55,4.69,1.19,1,0.31,0.37,0.9,1.79,3.69,0.6,1,PF,243.77
+Kenrich Williams,OKC,,299,140.05,65,15.4,6.32,3.31,1.4,0.6,0.11,0.89,0.71,2.46,5.2,0.51,0.8,SF,
+Jericho Sims,MIL,DTD,300,140.03,64,18.5,4.44,5.2,1.41,0.3,0.3,0,1,1.94,2.5,0.56,0.91,C,244.16
+Mark Williams,PHX,OUT,314,140.1,24,24.9,12.92,8.92,1.5,0.79,1,0,1.21,5.21,8.29,2.5,3.21,C,192.86
+Shaedon Sharpe,POR,OUT,323,140.1,27,25.4,16.81,3.7,2.3,1,0.11,1.7,2.19,6.3,14,2.52,3.19,SG/SF,223.24
+Ben Simmons,SAC,OUT,311,139.07,37,21.2,5,5,5.3,0.7,0.51,0,1.89,2.27,4.3,0.46,0.7,PG/SG,205.86`;
+
+const TEAM_IDS=['hjvy7hf0mtpyb8c6','dmz7zm10mtpyb8c6','0aydb2h2mtpyb8c6','8klyv9ebmtq9pb5p','iui98or2mtpyb8c6','cj3bmzubmtpyb8c6','yenxxn3qmtpyb8c6','62yo1et4mtpyb8c6','wuegadobmtpyb8c6','b7hpaxbhmtpyb8c6'];
+const LEAGUE='sl92ebphmtpyb87o';
+/* exact pick ownership from Fantrax: 3rd round reversal plus traded picks */
+const ORDER='01234567899876543216987054321661234507899870543216612345678998705432166123450789987054321661234507899870543216612345078998705432166123450789987054321601234507899870543210';
+const TEAMS=["Team number 15","roseml01","Zach's Team","7 Seconds or Less","The Zion King","Corey's Team","Point G0d Haliburton","GOAT Steph Curry","FW Big Rigs","Gmfirle"];
+const NT=10, NR=17, POOL=160, FULLGP=75;
+const CATS=[
+  {k:'PTS',l:'PTS',d:1},{k:'REB',l:'REB',d:1},{k:'AST',l:'AST',d:1},{k:'STL',l:'STL',d:1},{k:'BLK',l:'BLK',d:1},
+  {k:'TPM',l:'3PM',d:1},{k:'FG',l:'FG%',d:1},{k:'FT',l:'FT%',d:1},{k:'TO',l:'TO',d:1}];
+const SLOTS=[
+  {n:'PG',ok:['PG']},{n:'SG',ok:['SG']},{n:'SF',ok:['SF']},{n:'PF',ok:['PF']},{n:'C',ok:['C']},
+  {n:'G',ok:['PG','SG']},{n:'F',ok:['SF','PF']},{n:'SG/SF',ok:['SG','SF']},{n:'PF/C',ok:['PF','C']},
+  {n:'Flx',ok:null},{n:'Flx',ok:null},{n:'Flx',ok:null}];
+
+/* parse */
+const P=RAW.trim().split('\n').map((ln,i)=>{
+  const a=ln.split(','); const n=j=>a[j]===''?null:+a[j];
+  return {id:i,name:a[0],team:a[1],inj:a[2],espnRk:n(3),espnADP:n(4),GP:n(5),MIN:n(6),PTS:n(7),REB:n(8),AST:n(9),STL:n(10),BLK:n(11),TPM:n(12),TO:n(13),
+    FGM:n(14),FGA:n(15),FTM:n(16),FTA:n(17),pos:a[18].split('/'),fxADP:n(19)};
+});
+/* games played by season (ESPN): 2023-24, 2024-25, 2025-26 */
+const HIST=`LeBron James,71,70,60
+Mike Conley,76,71,54
+Kevin Durant,75,62,78
+Al Horford,65,60,45
+Brook Lopez,79,80,75
+Stephen Curry,74,70,43
+DeMar DeRozan,79,77,77
+James Harden,72,79,70
+Jrue Holiday,69,62,53
+Paul George,74,41,37
+Jimmy Butler III,60,55,38
+Tobias Harris,70,73,63
+Kyrie Irving,58,50,
+Kawhi Leonard,68,37,65
+Klay Thompson,77,72,69
+Nikola Vucevic,76,73,64
+Harrison Barnes,82,82,77
+Bradley Beal,53,53,6
+Anthony Davis,76,51,20
+Andre Drummond,79,40,63
+Draymond Green,55,68,68
+Damian Lillard,73,58,1
+Khris Middleton,55,37,63
+CJ McCollum,66,56,76
+Tim Hardaway Jr.,79,77,80
+Jordan Clarkson,55,37,72
+T.J. McConnell,71,79,56
+Dorian Finney-Smith,68,63,37
+Pat Connaughton,76,41,42
+Larry Nance Jr.,61,24,35
+Kentavious Caldwell-Pope,76,77,51
+Royce O'Neale,79,75,78
+Norman Powell,76,60,58
+Taurean Prince,78,80,26
+Buddy Hield,84,82,51
+Marcus Smart,20,34,62
+Caris LeVert,68,64,60
+Jerami Grant,54,47,57
+Kris Dunn,66,74,82
+Fred VanVleet,73,60,
+Steven Adams,,58,32
+Alex Caruso,71,54,56
+Kyle Anderson,79,61,43
+Gary Harris,54,48,48
+Rudy Gobert,76,72,76
+Giannis Antetokounmpo,73,67,36
+Dennis Schroder,80,75,70
+Bogdan Bogdanovic,79,54,23
+Joel Embiid,39,19,38
+Andrew Wiggins,71,60,68
+Josh Hart,81,77,66
+Aaron Gordon,73,51,36
+Zach LaVine,25,74,39
+Bobby Portis,82,49,67
+Julius Randle,46,69,79
+Luke Kornet,63,73,68
+Derrick White,73,76,77
+Clint Capela,73,55,75
+Jusuf Nurkic,76,51,41
+Kristaps Porzingis,57,42,32
+Nikola Jokic,79,70,65
+Kelly Oubre Jr.,68,60,50
+Kenrich Williams,69,69,56
+Myles Turner,77,72,71
+Jevon Carter,72,36,53
+Kyle Kuzma,70,65,69
+Jakob Poeltl,50,57,46
+Jordan McLaughlin,56,46,44
+Grayson Allen,75,64,51
+Tyus Jones,66,81,67
+Devin Booker,68,75,64
+Karl-Anthony Towns,62,72,75
+Trey Lyles,58,69,
+D'Angelo Russell,76,58,26
+Jae'Sean Tate,65,52,46
+Caleb Martin,64,45,58
+Cameron Johnson,58,57,54
+Mikal Bridges,82,82,82
+Pascal Siakam,80,78,62
+Moritz Wagner,80,30,36
+Dillon Brooks,72,75,56
+Kevon Looney,74,76,21
+Domantas Sabonis,82,70,19
+Duncan Robinson,68,74,77
+Simone Fontecchio,66,75,70
+Ben Simmons,15,51,
+Dejounte Murray,78,31,14
+Matisse Thybulle,65,15,30
+Terance Mann,75,67,63
+Donovan Mitchell,55,71,70
+John Collins,68,40,69
+Dean Wade,54,59,59
+Luke Kennard,39,65,78
+Brandon Ingram,64,18,77
+Landry Shamet,46,50,51
+Jaylen Brown,70,63,71
+Jalen Brunson,77,65,74
+Donte DiVincenzo,81,62,82
+OG Anunoby,50,74,67
+Thomas Bryant,38,66,60
+Derrick Jones Jr.,76,77,50
+Jamal Murray,59,67,75
+Luka Doncic,70,50,64
+Ivica Zubac,68,80,48
+Jayson Tatum,74,72,16
+Jonathan Isaac,58,71,52
+De'Andre Hunter,57,64,45
+Ty Jerome,2,70,15
+Max Strus,70,50,12
+Sam Hauser,79,71,78
+Robert Williams III,6,20,59
+Grant Williams,76,16,36
+De'Aaron Fox,74,62,72
+Bam Adebayo,71,78,73
+Malik Monk,72,65,62
+Desmond Bane,42,69,82
+Jarrett Allen,77,82,56
+Lauri Markkanen,55,47,42
+Payton Pritchard,82,80,79
+Kevin Huerter,64,69,69
+Miles Bridges,69,64,77
+De'Anthony Melton,38,6,49
+Austin Reaves,82,73,51
+Rui Hachimura,68,59,68
+Zach Collins,69,64,10
+Sam Merrill,61,71,52
+Isaiah Hartenstein,75,57,47
+Collin Sexton,78,63,68
+Herbert Jones,76,20,56
+Gary Trent Jr.,71,74,65
+Wendell Carter Jr.,55,68,78
+Marvin Bagley III,50,31,60
+Jose Alvarado,56,56,69
+Trae Young,54,76,15
+Jericho Sims,45,53,67
+Jordan Poole,78,68,39
+Jaren Jackson Jr.,66,74,48
+Nickeil Alexander-Walker,82,82,78
+Daniel Gafford,74,57,55
+Davion Mitchell,72,74,70
+Nic Claxton,71,70,69
+Shai Gilgeous-Alexander,75,76,68
+Jarred Vanderbilt,29,36,65
+P.J. Washington,73,57,56
+Michael Porter Jr.,81,77,52
+Deandre Ayton,55,40,72
+Obi Toppin,82,79,24
+Paul Reed,82,45,65
+Jamal Cain,26,37,40
+Collin Gillespie,24,33,80
+Naji Marshall,66,69,74
+Ja Morant,9,50,20
+Corey Kispert,80,61,58
+Goga Bitadze,62,70,64
+Anfernee Simons,46,70,55
+Mitchell Robinson,31,17,60
+RJ Barrett,58,58,57
+Tre Jones,77,46,65
+Zion Williamson,70,30,62
+Devin Vassell,68,64,67
+Coby White,79,74,50
+Isaiah Joe,78,74,71
+Andrew Nembhard,68,65,57
+Keldon Johnson,69,77,82
+Immanuel Quickley,68,33,70
+Tyler Herro,42,77,33
+Darius Garland,57,75,45
+Aaron Nesmith,72,45,45
+Naz Reid,81,80,77
+Tyrese Haliburton,69,73,
+Ayo Dosunmu,76,46,69
+Quentin Grimes,51,75,75
+Luguentz Dort,79,71,69
+Jaxson Hayes,70,56,66
+Saddiq Bey,63,,72
+Kevin Porter Jr.,,75,38
+Aaron Wiggins,78,76,65
+Jalen Smith,61,64,53
+Neemias Queta,28,62,76
+AJ Green,56,73,78
+Trey Murphy III,57,53,66
+Charles Bassey,19,36,13
+Jalen Pickett,27,49,50
+Jaden McDaniels,72,82,73
+Tyrese Maxey,70,52,70
+Precious Achiuwa,74,57,73
+Onyeka Okongwu,55,74,74
+Trayce Jackson-Davis,67,62,53
+Patrick Williams,43,63,72
+Jalen Wilson,43,79,54
+Toumani Camara,70,78,82
+Kobe Brown,44,40,61
+Christian Braun,82,79,44
+Scotty Pippen Jr.,21,79,10
+Miles McBride,68,64,41
+Marcus Sasser,71,57,38
+Evan Mobley,50,71,65
+Jalen Suggs,75,35,57
+Cade Cunningham,62,70,64
+Isaiah Jackson,60,5,55
+Moses Moody,66,74,60
+Julian Strawther,50,65,57
+Day'Ron Sharpe,61,50,62
+Jamal Shead,,75,82
+Jaylen Clark,,40,68
+Paolo Banchero,80,46,72
+Max Christie,67,78,77
+Jabari Smith Jr.,76,57,77
+Isaiah Stewart,46,72,58
+Josh Green,57,68,58
+LaMelo Ball,22,47,72
+Tre Mann,41,13,53
+Isaac Okoro,69,55,63
+Jaylin Williams,69,47,65
+Terrence Shannon Jr.,,32,43
+Jaime Jaquez Jr.,75,66,75
+Ben Sheppard,57,63,65
+Scottie Barnes,60,65,80
+Walker Kessler,64,58,5
+Ziaire Williams,51,63,56
+Tari Eason,22,57,60
+Jonathan Kuminga,74,47,36
+Moussa Diabate,11,71,73
+Chet Holmgren,82,32,69
+Brandon Miller,74,27,65
+Johni Broome,,,11
+Jalen Duren,61,78,70
+Keyonte George,75,67,54
+Jalen Green,82,82,32
+Franz Wagner,72,60,34
+Ryan Kalkbrenner,,,69
+Peyton Watson,80,68,54
+Vit Krejci,22,57,65
+Koby Brea,,,12
+Ryan Rollins,13,56,74
+Julian Champagnie,74,82,82
+Bones Hyland,37,24,71
+Jake LaRavia,35,66,82
+Santi Aldama,61,65,43
+Jalen Williams,71,69,33
+Baylor Scheierman,,31,77
+Anthony Edwards,79,79,61
+Kris Murray,62,69,57
+Keegan Murray,77,76,23
+Olivier-Maxence Prosper,40,52,53
+Zach Edey,,66,11
+Oso Ighodaro,,61,82
+Jeremy Sochan,74,54,44
+Deni Avdija,75,72,66
+Bennedict Mathurin,59,72,54
+Scoot Henderson,62,66,30
+Dereck Lively II,55,36,7
+Jordan Walsh,9,52,68
+Cason Wallace,82,68,77
+Jaylon Tyson,,47,66
+Jordan Hawkins,67,56,51
+Isaiah Collier,,71,59
+Ronald Holland II,,81,78
+Bronny James,,27,42
+Jared McCain,,23,67
+Ja'Kobe Walter,,52,72
+Rob Dillingham,,49,65
+Amen Thompson,62,69,79
+Ausar Thompson,63,59,73
+Kyle Filipowski,,72,77
+Jalen Johnson,56,36,72
+Mark Williams,19,44,60
+Keon Ellis,57,80,72
+Tristan da Silva,,74,77
+Nique Clifford,,,75
+Brandin Podziemski,74,64,82
+Reed Sheppard,,52,82
+Matas Buzelis,,80,77
+Anthony Black,69,78,64
+Mouhamed Gueye,6,33,77
+Noah Clowney,23,46,66
+Stephon Castle,,81,68
+Bub Carrington,,82,82
+Jaden Hardy,73,57,57
+Dyson Daniels,61,76,76
+Derik Queen,,,81
+Alperen Sengun,63,76,72
+Josh Giddey,80,70,54
+Ace Bailey,,,72
+Asa Newell,,,44
+Ryan Dunn,,74,70
+Cody Williams,,50,67
+Walter Clayton Jr.,,,69
+Dalton Knecht,,78,54
+Ajay Mitchell,,36,57
+Cedric Coward,,,62
+Shaedon Sharpe,32,72,50
+Nikola Jovic,46,46,47
+Gui Santos,23,56,68
+Tristan Vukcevic,10,35,49
+Dylan Harper,,,69
+Cooper Flagg,,,70
+Leonard Miller,17,13,46
+Kon Knueppel,,,81
+Yves Missi,,73,66
+Sidy Cissoko,12,22,75
+Collin Murray-Boyles,,,57
+Rayan Rupert,39,52,64
+Bilal Coulibaly,63,59,56
+Victor Wembanyama,71,46,64
+GG Jackson,48,29,55
+Julian Phillips,40,79,48
+Donovan Clingan,,67,77
+Kel'el Ware,,64,77
+Adem Bona,,58,71
+Jett Howard,18,60,55
+Brice Sensabaugh,32,71,75
+Jarace Walker,33,75,76
+Gradey Dick,60,54,76
+Danny Wolf,,,57
+Jonathan Mogbo,,63,40
+Jaylen Wells,,79,69
+VJ Edgecombe,,,75
+Jeremiah Fears,,,82
+Johnny Furphy,,50,35
+Alex Sarr,,67,48
+Kyshawn George,,68,48
+Egor Demin,,,52
+Hugo Gonzalez,,,74
+Khaman Maluach,,,46
+Zaccharie Risacher,,75,67
+Kasparas Jakucionis,,,53
+Tre Johnson,,,60
+Jase Richardson,,,54
+Liam McNeeley,,,31
+Nolan Traore,,,56`;
+/* current injury designations (Fantrax, Oct 19) */
+const NOTES=`Santi Aldama|Knee · GTD · back Oct 21
+Stephen Curry|Ankle · GTD · back Oct 21
+Jerami Grant|Undisclosed · GTD · back Oct 21
+Chet Holmgren|Quad · GTD · back Oct 20
+Bam Adebayo|Groin · GTD · back Oct 21
+Brandin Podziemski|Back · GTD
+Tobias Harris|Calf · Out indefinitely · est. Oct 23
+Aaron Nesmith|Hamstring · GTD · back Oct 21
+Franz Wagner|Shoulder · GTD · back Oct 21
+Kyle Filipowski|Back · GTD · back Oct 21
+Cason Wallace|Undisclosed · GTD · back Oct 20
+Malik Monk|Ankle · GTD · back Oct 21
+Anfernee Simons|Hamstring · GTD · back Oct 20
+Collin Sexton|Lower leg · GTD · back Oct 21
+Coby White|Calf · GTD · back Oct 21
+Moussa Diabate|Elbow · GTD · back Oct 21
+Kon Knueppel|Hamstring · GTD · back Oct 21
+AJ Dybantsa|Ankle · GTD · back Oct 21
+Josh Hart|Ankle · GTD · back Oct 20
+Dereck Lively|Foot · GTD · back Oct 21
+Grayson Allen|Knee · GTD · back Oct 21
+Isaac Okoro|Undisclosed · GTD · back Oct 21
+Jrue Holiday|Hand · GTD · back Oct 21
+Anthony Black|Ankle · GTD · back Oct 21
+Adem Bona|Foot · GTD · back Oct 20
+Zach Collins|Toe · GTD · back Oct 21
+Jaylin Williams|Heel · GTD · back Oct 20
+Sam Merrill|Elbow · GTD · back Oct 22
+Jarred Vanderbilt|Undisclosed · GTD · back Oct 21
+Luke Kennard|Knee · GTD · back Oct 21
+Oso Ighodaro|Hip · GTD · back Oct 21
+Mouhamed Gueye|Foot · GTD · back Oct 21
+Jarace Walker|Undisclosed · GTD · back Oct 21
+Charles Bassey|Knee · GTD
+GG Jackson|Ankle · GTD · back Oct 21
+Jase Richardson|Back · GTD · back Oct 21
+Dean Wade|Ankle · GTD · back Oct 20
+Grant Williams|Hamstring · GTD · back Oct 21
+Nate Ament|Ankle · GTD · back Oct 21
+Isaiah Stewart|Ankle · Out indefinitely · est. Oct 23
+T.J. McConnell|Undisclosed · GTD · back Oct 21
+Jericho Sims|Undisclosed · GTD · back Oct 21
+Bradley Beal|Knee · Out indefinitely · est. Nov 8`;
+const nrm=s=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\b(jr|sr|ii|iii|iv)\b/g,'').replace(/[^a-z]/g,'');
+const HM={};HIST.split('\n').forEach(l=>{const a=l.split(',');HM[nrm(a[0])]=a.slice(1,4)});
+const NM={};NOTES.split('\n').forEach(l=>{const [n,t]=l.split('|');NM[nrm(n)]=t});
+P.forEach(p=>{
+  const raw=HM[nrm(p.name)];let hist=[null,null,null];
+  if(raw){const d=raw.findIndex(x=>x!=='');if(d>=0)hist=raw.map((x,i)=>i<d?null:(x===''?0:+x))}
+  const seasons=hist.filter(x=>x!=null);const rookie=!seasons.length;
+  const avg=rookie?null:seasons.reduce((a,b)=>a+b,0)/seasons.length;
+  const note=NM[nrm(p.name)]||'';
+  const out=p.inj==='OUT'||/Out/.test(note), dtd=p.inj==='DTD'||/GTD/.test(note);
+  let risk;
+  if(out)risk='High';
+  else if(rookie)risk=dtd?'Med':'Rookie';
+  else{const low=seasons.filter(g=>g<55).length;
+    risk=(avg<50||low>=2)?'High':(avg<62||low>=1)?'Med':'Low';
+    if(dtd&&risk==='Low')risk='Med';}
+  p.health={hist,avg,rookie,risk,note,out,dtd};p.hAvg=rookie?70:avg;
+  /* games used by the model: 25% ESPN projection, 75% 3-yr history (history capped at projection) */
+  p.effGP=rookie?p.GP:Math.round(.25*p.GP+.75*Math.min(p.GP,avg+5));
+});
+/* scouting notes: written from ESPN 2026-27 outlooks (paraphrased), plus offseason moves */
+const SCOUT=`Nikola Jokic|Entire Denver offense runs through him. Back-to-back triple-double seasons with a career-high 10.7 APG. Safest elite pick in the pool.
+Shai Gilgeous-Alexander|Two-time reigning MVP. Huge free throw volume at high efficiency, about 72 games a year over four seasons. Low-risk anchor.
+Luka Doncic|Two scoring titles in three years, and LeBron is gone so usage climbs again. Missed 50 games over two seasons. Turnovers and FT% are the drag in 9-cat.
+Victor Wembanyama|League blocks leader by a wide margin with career highs in points, boards and FG%. Rare 3s from a center. Missed 54 games the last two years.
+Giannis Antetokounmpo|Traded MIL to MIA. Only 36 games last year. Elite points, boards and FG% when healthy, but FT% and turnovers sink him in 9-cat unless you punt FT%.
+Jalen Johnson|Points, boards and assists up five straight years, now the clear top option in Atlanta after the Trae trade. Real triple-double upside.
+Cade Cunningham|Career highs in assists, steals and blocks last season. Durability is the flag: one 65-plus game season in his career, though 67 a year lately.
+Anthony Edwards|Career-best scoring and FG% last year, now paired with LaMelo Ball as a true creator. 30-PPG upside and a top-tier 3s source.
+Jayson Tatum|Played only the final 16 games last year after a long absence. Jaylen Brown is gone, so usage should be his highest yet if healthy.
+Donovan Mitchell|Steady production through the Garland-for-Harden swap. Slightly less volume possible but better looks and efficiency next to Harden.
+Cooper Flagg|Rookie of the Year. Was miscast at point guard last year; new coach and Kyrie's return should free him up. Across-the-board growth expected.
+Domantas Sabonis|Knee injury held him to 19 games. Prior three years averaged 19-13-7 over 77 games. Kings rebuilding and trade rumors swirl.
+Tyrese Maxey|Career highs in all six counting cats last year. PHI added Jaylen Brown and LeBron, so his volume likely tops out.
+LaMelo Ball|Traded CHA to MIN to pair with Edwards. Big 3s and assists, poor FG%. Has topped 51 games only twice in his career.
+Jalen Brunson|Won a title with the Knicks. Production locked in around 26-3-7 with the same starting five back.
+Trae Young|Traded ATL to WAS midseason, played just 15 games. Now runs pick-and-roll with Anthony Davis. Elite assists, heavy turnovers.
+Scottie Barnes|Rock-steady 19-8-6 with three combined stocks per game. Kawhi's arrival should open easier looks.
+Josh Giddey|Points, boards and assists rose both years in Chicago. Focal point of a rebuild with near triple-double upside.
+Amen Thompson|Improved every season. VanVleet's return trims assists but frees him to score more. Only 23.
+Devin Booker|Production barely moves year to year. Games played is the main variable, 53 to 77 over eight seasons.
+Tyrese Haliburton|Back from a torn Achilles that cost all of last season. Pre-injury 20 and 10 with nearly three 3s. May be managed early.
+Alperen Sengun|20-10-5 with a block and a steal over three years. Still a top option next to Durant. Weak FT% and 3s.
+Kevin Durant|Year 20, still a top scorer. VanVleet's return should mean cleaner halfcourt looks. Ranked 15th in fantasy scoring last year.
+Karl-Anthony Towns|Scoring and 3s dipped to fit the Knicks, but 12.4 RPG over two years. Showed playoff passing that could lift assists.
+James Harden|Usage dropped sharply after the midseason trade next to Mitchell. Expect less than his norm, still a fantasy starter.
+Pascal Siakam|Second-best scoring year while carrying the load with Haliburton out. May hold that scoring with better setups.
+Jalen Duren|Nearly doubled his scoring to a 20-10 average. Elite FG% on volume at the rim. Still 22.
+Jamal Murray|Career highs across the board and 75 games, his most since 2018-19. Ideal fit next to Jokic.
+Anthony Davis|Played 20 games last year, then was traded to WAS without suiting up. Primary big next to Trae. Elite blocks and boards, big health risk.
+Deni Avdija|Breakout with 24 PPG and 6.7 APG. Portland's crowded guard room likely shifts him toward a finisher role.
+Austin Reaves|Star leap last season. LeBron gone, so he's the clear No. 2 behind Luka with huge spike weeks when Luka sits.
+Bam Adebayo|Consistent 20-10 over about 74 games a year. Giannis should draw help defense and improve his looks.
+Kawhi Leonard|Traded LAC to TOR. Career highs in scoring, 3s and FT% over 68 games. Topped 57 games only twice in six years.
+Jalen Williams|Injuries limited him to 33 games. Healthy, 2024-25 line of 22-5-5 with two stocks is the baseline.
+Evan Mobley|Steady 18-9 with two blocks. Under 70 games in three of five seasons. Health is the swing factor.
+Derrick White|Finished 19th on the Player Rater with no category holes, including 1.3 blocks from a guard. Prime 9-cat value pick.
+Stephen Curry|Only 43 games last year with lingering knee concerns at 38. Elite 3s and FT% when he plays. Risky early.
+Darius Garland|Now the lead option for the Clippers after the Kawhi trade. Numbers rose post-trade. Health is the question.
+Desmond Bane|20 PPG with two 3s in his first Orlando season. Has hit 3.3 3PG before, upside if Banchero and Wagner stay healthy.
+Kon Knueppel|Set rookie 3-point records. Bigger shot share likely, but losing LaMelo may hurt shot quality.
+Jaylen Brown|Traded BOS to PHI. Coming off a career year as the solo star, now shares the ball with Maxey, Embiid and LeBron.
+LeBron James|Signed with PHI as the third or fourth option. Maybe more point-forward assists, but volume is capped.
+De'Aaron Fox|Scoring fell six points in San Antonio sharing with Wemby, Castle and Harper. More slippage possible.
+Naz Reid|Traded MIN to CHA and may finally start. Steady 14-6 with 3s and stocks. Top-50 upside in cats.
+Mikal Bridges|Has never missed a game in his career. No category negatives. Safe 9-cat filler with elite availability.
+Paolo Banchero|Back to 72 games. Scoring dipped sharing with Wagner and Bane. FT% and turnovers are weak spots.
+Nickeil Alexander-Walker|Most Improved Player at 20.8 PPG. Clean fit as shooter and wing defender in Atlanta.
+Michael Porter Jr.|Scoring career high in Brooklyn and still the top option after Randle arrived. Over 62 games only twice in seven years.
+Dyson Daniels|Two straight years leading the league in steals at 2.5 per game. New Atlanta wings could trim his minutes.
+Julius Randle|Traded MIN to BKN. Should get more usage on a rebuilding team next to MPJ.
+Lauri Markkanen|Career highs in scoring, assists and steals but a career-low 42 games. Still Utah's primary scorer.
+Dejounte Murray|45 games over two years from major injuries. When healthy, a plus contributor in most categories.
+Stephon Castle|Big Year 2 jump in scoring and assists. Fox and Harper may cap his assists. 20 PPG upside.
+Jarrett Allen|Only 56 games last year after averaging 80 the two before. Efficient 15 PPG with boards and defense, scoring rose after the Harden trade.
+Kyrie Irving|Missed all of last season with a torn ACL, reportedly nearly recovered. Lead guard next to Flagg with room for more volume.
+Tyler Herro|Traded MIA to MIL in the Giannis deal. Rebuilding Bucks give him all the shots he wants. Career-best volume likely.
+Zion Williamson|Bounced back to 62 games but posted career-low points and boards. Crowded frontcourt clouds his role.
+Franz Wagner|Scoring dropped about four points in a three-star offense. 94 of 164 games over the last two years.
+Ty Jerome|Only 15 games last year but huge per-minute numbers. Bigger role with Morant traded. Top-50 upside if healthy.
+Brandon Miller|Same per-game line as the year before over 65 games. More volume without LaMelo, possibly worse shot quality.
+Damian Lillard|Missed last season with a torn Achilles. Back in Portland in a four-man guard crowd that likely caps volume.
+Onyeka Okongwu|Minutes and scoring up six straight years. Block and steal per game plus a developing 3, 1.9 3PG last year.
+Keyonte George|Broke out in the mid-20s with career-high assists. Has to share the ball with rookie Darryn Peterson.
+Trey Murphy III|High-volume streaky shooter and a priority in New Orleans. Over 66 games only once in five years.
+Norman Powell|Signed with Chicago as the scoring wing. Should get clean looks off Giddey.
+Caleb Wilson|No. 4 pick. Explosive big forward who flashed a new 3-point shot at Summer League. Boards and defense from day one.
+Cameron Boozer|NBA-ready rookie big with an inside-out game and passing. Focal point of Memphis's rebuild. ROY favorite.
+Donovan Clingan|Elite shot-blocker who added a double-double and 1-plus 3s in Year 2. Even more valuable in cats than points.
+Walker Kessler|Shoulder surgery limited him to five games. Now LAL's starting center next to Luka. Elite blocks, top-30 cats upside.
+Rudy Gobert|Randle and Reid both traded away, so his minutes are locked. Boards, blocks and FG% anchor. FT% hurts.
+Chet Holmgren|Incremental gains last year with room for a 20 and 10 jump. Blocks plus 3s make him a cats target.
+Joel Embiid|Played 57 of 164 games over two years. Elite when on the floor. Late-middle round gamble with league-winning upside.
+Ivica Zubac|Traded LAC to IND midseason while hurt. Healthy and with Haliburton feeding him, should return to elite rebounding.
+Ja Morant|Traded MEM to POR after off-court and injury issues. One of four lead guards there, so minutes may drop.
+Brandin Podziemski|Became a starter while Curry and Butler were out. No weak category, solid cats value.
+Kel'el Ware|Traded MIA to MIL in the Giannis deal. Near double-double with a 3, block and steal in 22 MPG. Breakout candidate.
+VJ Edgecombe|Electric rookie year, now the fourth or fifth option in a loaded PHI lineup. Good 3s and stocks.
+Alex Sarr|Former No. 2 pick improving fast, strong blocks. Davis and Ayton arrivals could cap minutes.
+Matas Buzelis|Nearly doubled his rookie numbers. Starting small forward with across-the-board production.
+Miles Bridges|Traded CHA to PHX. Same shooter-scorer forward role, value about unchanged.
+AJ Dybantsa|No. 1 overall pick. Led the NCAA in scoring and draws fouls. Likely rookie scoring leader.
+CJ McCollum|Fit well in Atlanta after the midseason trade. Scoring, 3s and assists make him a top-80 type.
+Coby White|Likely starts for Charlotte after the Ball trade. Has posted 20 PPG and 5 APG before.
+Jaren Jackson Jr.|Traded to Utah midseason, played three games before a knee shutdown. Blocks plus 3s make him a cats target if healthy.
+Dylan Harper|Strong rookie year and a playoff push into near-starter minutes. Averaged 16-5-5 in six starts.
+Derik Queen|Solid 12-7-4 rookie year in 25 minutes. Part of the long-term plan with double-double upside if he starts.
+DeMar DeRozan|Signed with Denver as a sixth man with near-starter minutes. Steady scoring, slightly trimmed.
+Reed Sheppard|Stepped up while VanVleet was out. VanVleet and Smart now cap his minutes. Good 3s and steals.
+Fred VanVleet|Missed last season with a knee injury. Back as Houston's starting point guard.
+Payton Pritchard|Minutes up three straight years. Brown's trade keeps his role large. Big 3s and solid assists.
+Immanuel Quickley|Lead guard with steady 3s and assists. Kawhi should draw defensive focus off him.
+OG Anunoby|Classic 3-and-D wing in a stable lineup. More than two 3s and about 2.5 stocks.
+Josh Hart|Slipped while playing hurt last year. Elite rebounding wing who should return to 33-plus minutes.
+Darius Acuff Jr.|Best shot-creator in the draft class. Gets usage on a rebuilding Kings team. Turnovers are the risk.
+Jaden McDaniels|Career year, and Randle and Reid are gone. Blocks, steals and 3s with good percentages.
+Ryan Rollins|Breakout starter last year. Keeps a big role in the Bucks rebuild.
+Ayo Dosunmu|Traded to MIN midseason and earned an extension. Starter minutes either way. Useful 3s and all-around game.
+Kristaps Porzingis|Missed at least 16 games in nine straight years and already out for camp. Productive but very risky.
+Kevin Porter Jr.|Strong per-game year but only 38 games and April knee surgery. Crowded Bucks guard room.
+Nikola Vucevic|Minutes collapsed in Boston. Back in Orlando competing with Wendell Carter Jr.
+John Collins|Signed with Detroit as a frontcourt scorer next to Cade. Has topped 19 PPG three times.
+Ausar Thompson|About two steals and a block per game. No 3-point shot limits his value.
+RJ Barrett|Five straight 20 PPG seasons. Kawhi may trim his shots.
+Andrew Wiggins|Third option behind Giannis and Bam. Steady points, 3s and boards for the middle rounds.
+Tobias Harris|Traded DET to SAS, battling Champagnie for the starting PF job. Late flier.
+Darryn Peterson|No. 2 pick. Scored 20 PPG at Kansas through health issues. Utah's scorers may limit early usage.
+Brandon Ingram|Traded TOR to LAC and recovering from foot surgery with no timeline. Huge usage when back.
+Jeremiah Fears|Played all 82 games as a rookie, poor 3-point shooting. Defense may keep him off a full starting role.
+Keegan Murray|Injury-hit year with a career-low 27.7% from three but 1.6 BPG. Defensive stats give him a floor.
+Jabari Smith Jr.|Likely starter, Tari Eason pushing for minutes. 3s, boards and blocks.
+Myles Turner|Down first year in Milwaukee. Still a 3s plus blocks center, but scoring and boards are fading.`;
+const MOVES=`Giannis Antetokounmpo|MIL
+LaMelo Ball|CHA
+Kawhi Leonard|LAC
+Jaylen Brown|BOS
+LeBron James|LAL
+Naz Reid|MIN
+Julius Randle|MIN
+Tyler Herro|MIA
+Norman Powell|MIA
+Walker Kessler|UTA
+Kel'el Ware|MIA
+Miles Bridges|CHA
+DeMar DeRozan|SAC
+Nikola Vucevic|BOS
+John Collins|LAC
+Tobias Harris|DET
+Paul George|PHI
+Brandon Ingram|TOR
+Nic Claxton|BKN
+Jaime Jaquez Jr.|MIA
+Peyton Watson|DEN
+Quentin Grimes|PHI
+Collin Sexton|CHI
+Mitchell Robinson|NYK
+Jonathan Kuminga|ATL
+Isaiah Stewart|DET
+Grayson Allen|PHX
+Matisse Thybulle|POR
+Ja Morant|MEM`;
+const SM={};SCOUT.split('\n').forEach(l=>{const i=l.indexOf('|');SM[nrm(l.slice(0,i))]=l.slice(i+1)});
+const MM={};MOVES.split('\n').forEach(l=>{const [n,t]=l.split('|');MM[nrm(n)]=t});
+P.forEach(p=>{p.scout=SM[nrm(p.name)]||'';p.from=MM[nrm(p.name)]||''});
+[...P].filter(p=>p.fxADP).sort((a,b)=>a.fxADP-b.fxADP).forEach((p,i)=>p.fxRk=i+1);
+P.forEach(p=>{p.fgp=p.FGA?p.FGM/p.FGA:0;p.ftp=p.FTA?p.FTM/p.FTA:0});
+
+/* z-scores: per-game, pool = top 160 by total, two passes; FG/FT weighted by volume */
+(function zscores(){
+  let pool=[...P].sort((a,b)=>a.espnRk-b.espnRk).slice(0,POOL);
+  for(let pass=0;pass<3;pass++){
+    const sum=k=>pool.reduce((s,p)=>s+p[k],0);
+    const lgFG=sum('FGM')/sum('FGA'), lgFT=sum('FTM')/sum('FTA');
+    P.forEach(p=>{p.raw={PTS:p.PTS,REB:p.REB,AST:p.AST,STL:p.STL,BLK:p.BLK,TPM:p.TPM,TO:p.TO,
+      FG:p.FGA*(p.fgp-lgFG),FT:p.FTA*(p.ftp-lgFT)}});
+    const st={};
+    CATS.forEach(c=>{const v=pool.map(p=>p.raw[c.k]);const m=v.reduce((s,x)=>s+x,0)/v.length;
+      const sd=Math.sqrt(v.reduce((s,x)=>s+(x-m)**2,0)/v.length)||1;st[c.k]={m,sd}});
+    P.forEach(p=>{p.z={};let t=0;CATS.forEach(c=>{let z=(p.raw[c.k]-st[c.k].m)/st[c.k].sd;if(c.k==='TO')z=-z;p.z[c.k]=z;t+=z});p.zt=t});
+    pool=[...P].sort((a,b)=>b.zt-a.zt).slice(0,POOL);
+  }
+})();
+
+/* state */
+const KEY='lhl-draft-v4';
+const DEF={theme:'dark',log:[],mySlot:3,sync:true,mode:Object.fromEntries(CATS.map(c=>[c.k,'normal'])),gpw:100,beta:50,sort:'fit',dir:-1,pos:'ALL',view:'stats',showTaken:false};
+let S=structuredClone(DEF);
+try{const s=JSON.parse(localStorage.getItem(KEY)||'null');if(s)S=Object.assign(structuredClone(DEF),s,{mode:Object.assign({},DEF.mode,s.mode||{})})}catch(e){}
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
+let q='', openId=null, SCAR={};
+
+/* helpers */
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const slotOf=n=>+ORDER[n-1];
+/* turnovers count half at Normal: they track usage, so full weight over-penalizes primary creators */
+const W=k=>{const m={focus:1.5,normal:1,punt:0}[S.mode[k]];return k==='TO'?m*.5:m};
+const gpFactor=p=>Math.pow(Math.min(p.effGP||0,FULLGP)/FULLGP,S.gpw/100);
+function nextMine(from){for(let n=from;n<=NT*NR;n++)if(slotOf(n)===S.mySlot)return n;return null}
+
+/* matching for roster slots */
+function assign(players){
+  const ord=[...players].sort((a,b)=>b.val-a.val);
+  const match=new Array(SLOTS.length).fill(-1);
+  const fits=(p,s)=>!s.ok||p.pos.some(x=>s.ok.includes(x));
+  function tryP(pi,seen){for(let si=0;si<SLOTS.length;si++){if(seen[si]||!fits(ord[pi],SLOTS[si]))continue;seen[si]=1;
+    if(match[si]<0||tryP(match[si],seen)){match[si]=pi;return true}}return false}
+  ord.forEach((_,pi)=>tryP(pi,[]));
+  const used=new Set(match.filter(x=>x>=0));
+  return {slots:SLOTS.map((s,si)=>({n:s.n,p:match[si]>=0?ord[match[si]]:null})),bench:ord.filter((_,i)=>!used.has(i))};
+}
+function posFilled(players){ // count of the 9 positional (non-Flx) slots that can be filled
+  const sl=SLOTS.slice(0,9);const match=new Array(sl.length).fill(-1);
+  function tryP(p,pi,seen){for(let si=0;si<sl.length;si++){if(seen[si]||!p.pos.some(x=>sl[si].ok.includes(x)))continue;seen[si]=1;
+    if(match[si]<0||tryP(players[match[si]],match[si],seen)){match[si]=pi;return true}}return false}
+  players.forEach((p,pi)=>tryP(p,pi,[]));return match.filter(x=>x>=0).length;
+}
+
+/* main compute */
+function compute(){
+  const taken=new Map(S.log.filter(e=>e.id!=null).map((e,i)=>[e.id,{team:e.team,pick:S.log.indexOf(e)+1}]));
+  P.forEach(p=>{let v=0;CATS.forEach(c=>v+=W(c.k)*p.z[c.k]);p.base=v;p.val=v>0?v*gpFactor(p):v/Math.max(gpFactor(p),.5);p.taken=taken.get(p.id)||null});
+  [...P].sort((a,b)=>b.val-a.val).forEach((p,i)=>p.rank=i+1);
+  // team category totals
+  const T=Array.from({length:NT},()=>({players:[],sum:Object.fromEntries(CATS.map(c=>[c.k,0]))}));
+  P.forEach(p=>{if(p.taken){const t=T[p.taken.team];t.players.push(p);CATS.forEach(c=>t.sum[c.k]+=p.z[c.k])}});
+  const me=T[S.mySlot];
+  const others=T.filter((_,i)=>i!==S.mySlot);
+  const need={};
+  CATS.forEach(c=>{const avg=others.reduce((s,t)=>s+t.sum[c.k],0)/others.length;
+    need[c.k]=Math.max(-1,Math.min(1,(avg-me.sum[c.k])/Math.max(2,me.players.length)))});
+  const rank={};CATS.forEach(c=>{rank[c.k]=1+T.filter((t,i)=>i!==S.mySlot&&t.sum[c.k]>me.sum[c.k]).length});
+  const myFilled=posFilled(me.players);
+  const b=S.beta/100;
+  P.forEach(p=>{let f=0;CATS.forEach(c=>{const w=W(c.k);if(!w)return;f+=w*(1+b*need[c.k])*p.z[c.k]});
+    p.fit=f>0?f*gpFactor(p):f/Math.max(gpFactor(p),.5);
+    p.fills=!p.taken&&me.players.length>=5&&myFilled<9&&posFilled([...me.players,p])>myFilled});
+  return {T,me,need,rank};
+}
+
+/* render */
+function heat(z,off){if(off)return '';const a=Math.round(Math.min(1,Math.abs(z)/2.2)*58);
+  return `background:color-mix(in oklab,var(${z>=0?'--pos':'--neg'}) ${a}%,transparent)`}
+function cellVal(p,k){
+  if(S.view==='z')return (p.z[k]>=0?'+':'')+p.z[k].toFixed(1);
+  if(k==='FG')return (p.fgp*100).toFixed(1);
+  if(k==='FT')return (p.ftp*100).toFixed(1);
+  const v=p[k];return v==null?'0.0':v.toFixed(1);
+}
+function injTag(p){
+  if(p.health.out)return '<span class="tag inj">OUT</span>';
+  if(p.health.dtd)return '<span class="tag dtd">DTD</span>';
+  return '';
+}
+const RISKC={High:'hr-high',Med:'hr-med',Low:'hr-low',Rookie:'hr-rook'};
+function riskBadge(p){return `<span class="hb ${RISKC[p.health.risk]}">${p.health.risk==='Rookie'?'Rookie':p.health.risk+' risk'}</span>`}
+function gpBars(p){if(p.health.rookie)return '<span class="sub">no NBA history</span>';
+  return `<span class="gpb" aria-label="Games played last 3 seasons">${p.health.hist.map(g=>g==null?'<i class="na"></i>':`<i style="height:${Math.max(2,g/82*20)}px" class="${g<45?'lo':g<62?'md':''}"></i>`).join('')}</span><span class="gpn">${p.health.hist.map(g=>g==null?'-':g).join(' ')}</span>`}
+function profile(p){
+  const live=CATS.filter(c=>W(c.k));
+  const elite=live.filter(c=>p.z[c.k]>=1.5).map(c=>c.l), plus=live.filter(c=>p.z[c.k]>=.6&&p.z[c.k]<1.5).map(c=>c.l);
+  const bad=CATS.filter(c=>p.z[c.k]<=-.8).sort((a,b)=>p.z[a.k]-p.z[b.k]);
+  const out=[];
+  if(elite.length)out.push(`Elite: ${elite.join(', ')}.`);
+  if(plus.length)out.push(`Plus: ${plus.join(', ')}.`);
+  if(bad.length)out.push(`Hurts: ${bad.map(c=>c.l).join(', ')}.`);else out.push('No category holes.');
+  const worst=bad[0];
+  if(worst&&p.z[worst.k]<=-1.2){const rest=p.zt-p.z[worst.k];if(rest>=3)out.push(`Strong punt-${worst.l} target (${rest.toFixed(1)} z without it).`)}
+  if(p.fxRk){const g=p.fxRk-p.rank;
+    if(g>=15)out.push(`Fantrax ranks him ${g} spots below the model, so he should slide.`);
+    else if(g<=-15)out.push(`Fantrax ranks him ${-g} spots above the model, likely overdrafted for 9-cat.`);}
+  if(p.health.rookie)out.push('Rookie: projection only, no NBA track record.');
+  return out.join(' ');
+}
+function scoutCard(p){
+  const h=p.health;
+  return `<div class="scard">
+    <div class="srow"><span class="slab">Situation</span><span>${p.from?`<b class="mv">New team: ${esc(p.from)} to ${esc(p.team)}.</b> `:''}${p.scout?esc(p.scout):'<span class="sub">No outlook published. See profile.</span>'}</span></div>
+    <div class="srow"><span class="slab">Profile</span><span>${esc(profile(p))}</span></div>
+    <div class="srow"><span class="slab">Health</span><span>${riskBadge(p)} ${h.rookie?'No NBA games yet.':`GP by season ${h.hist.map(g=>g==null?'-':g).join(' / ')} (avg ${Math.round(h.avg)}).`} ESPN projects ${p.GP} GP, model uses ${p.effGP}.${h.note?' '+esc(h.note)+'.':h.out?' Out per ESPN.':''}</span></div>
+    <div class="srow"><span class="slab">Per game</span><span class="num">${p.MIN.toFixed(1)} min · ${p.PTS.toFixed(1)} pts · ${p.REB.toFixed(1)} reb · ${p.AST.toFixed(1)} ast · ${p.STL.toFixed(1)} stl · ${p.BLK.toFixed(1)} blk · ${(p.TPM||0).toFixed(1)} 3pm · ${(p.fgp*100).toFixed(1)} FG% · ${(p.ftp*100).toFixed(1)} FT% · ${p.TO.toFixed(1)} TO</span></div>
+  </div>`;
+}
+function noteLine(p){
+  const h=p.health;let t=h.note;
+  if(!t&&h.out)t='Out per ESPN (no Fantrax note)';
+  if(!t&&h.dtd)t='Day-to-day per ESPN';
+  return t?`<div class="inote ${h.out?'out':''}">${esc(t)}</div>`:'';
+}
+function render(){
+  const R=compute();
+  const n=S.log.length+1, done=n>NT*NR;
+  const onClock=done?null:slotOf(n);
+  $('sPick').textContent=done?'Done':n;
+  $('sRound').textContent=done?NR:Math.ceil(n/NT);
+  $('sClock').textContent=done?'Draft complete':TEAMS[onClock];
+  $('sClockBox').classList.toggle('me',onClock===S.mySlot);
+  const nm=done?null:nextMine(n);
+  $('sNext').textContent=nm==null?'-':(nm===n?'NOW':`#${nm}`);
+  $('sNextLab').textContent=nm==null?'Your next pick':(nm===n?'You are up':`Your next pick · ${nm-n} away`);
+
+  // cats
+  $('cats').innerHTML=CATS.map(c=>`<div class="cat"><label>${c.l}</label><div class="seg" role="group" aria-label="${c.l} plan">${
+    ['focus','normal','punt'].map(m=>`<button data-c="${c.k}" data-m="${m}" aria-pressed="${S.mode[c.k]===m}">${m==='focus'?'Focus':m==='normal'?'Normal':'Punt'}</button>`).join('')}</div></div>`).join('');
+  const f=CATS.filter(c=>S.mode[c.k]==='focus').map(c=>c.l), pu=CATS.filter(c=>S.mode[c.k]==='punt').map(c=>c.l);
+  $('planSum').textContent=[f.length?'Focus: '+f.join(', '):'',pu.length?'Punt: '+pu.join(', '):'',(!f.length&&!pu.length)?'All 9 cats normal':'',`GP penalty ${S.gpw}% · Balance ${S.beta}%`].filter(Boolean).join(' · ');
+  $('gpw').value=S.gpw;$('gpwV').textContent=S.gpw+'%';
+  $('beta').value=S.beta;$('betaV').textContent=S.beta+'%';
+
+  // recs
+  const avail=P.filter(p=>!p.taken);
+  const recs=[...avail].sort((a,b)=>b.fit-a.fit).slice(0,4);
+  const after=nm!=null&&nm===n?nextMine(n+1):nm;
+  $('recHint').textContent=after?`Next turn after this: #${after}`:'';
+  $('recs').innerHTML=recs.map(p=>{
+    const live=CATS.filter(c=>W(c.k));
+    const best=[...live].sort((a,b)=>p.z[b.k]-p.z[a.k]).slice(0,3).filter(c=>p.z[c.k]>.3).map(c=>c.l);
+    const gone=after&&p.fxADP&&p.fxADP<after;
+    return `<div class="rec">
+      <button class="rname" data-recopen="${p.id}">${esc(p.name)}</button>${injTag(p)}
+      <span class="num rfit">${p.fit.toFixed(1)}</span>
+      ${riskBadge(p)}
+      <span class="rwhy">${best.length?best.join(' '):'no standout'}</span>
+      ${p.from?'<span class="tag mvt" style="margin:0">NEW</span>':''}${gone?`<span class="tag gone" style="margin:0">gone by #${after}</span>`:''}
+      <button class="draft ${onClock===S.mySlot?'mine':''}" data-pick="${p.id}" ${done?'disabled':''}>Draft</button></div>`}).join('')||'<div class="empty-note">No players left.</div>';
+
+  // stat scarcity: elite sources (z >= 1.0) among draftable available players, now vs at your next turn
+  const left=Math.max(30,NT*NR-S.log.length);
+  const draftable=[...avail].sort((a,b)=>b.val-a.val).slice(0,left);
+  const turn=after||n;
+  SCAR={};
+  CATS.forEach(c=>{const src=draftable.filter(p=>p.z[c.k]>=1);
+    const later=src.filter(p=>(p.fxRk||p.espnRk||999)>=turn).length;
+    SCAR[c.k]={now:src.length,later,names:src.sort((a,b)=>b.z[c.k]-a.z[c.k]).slice(0,5).map(p=>p.name.split(' ').slice(-1)[0])}});
+
+  // board
+  const cols=[
+    {k:'fxRk',l:'FX Rk',num:1},{k:'rank',l:'My Rk',num:1},{k:'name',l:'Player',left:1},{k:'gap',l:'Gap',num:1},{k:'fxADP',l:'ADP',num:1},
+    {k:'val',l:'Value',num:1},{k:'fit',l:'Fit',num:1},{k:'GP',l:'Proj GP',num:1},{k:'hAvg',l:'Health · GP 3 yrs',num:1},{k:'MIN',l:'MIN',num:1},
+    ...CATS.map(c=>({k:'z.'+c.k,l:c.l,cat:c.k})),{k:'act',l:''}];
+  let rows=P.filter(p=>S.showTaken||!p.taken);
+  if(S.pos!=='ALL')rows=rows.filter(p=>p.pos.includes(S.pos));
+  if(S.hideHigh)rows=rows.filter(p=>p.health.risk!=='High');
+  if(q){const s=q.toLowerCase();rows=rows.filter(p=>p.name.toLowerCase().includes(s)||p.team.toLowerCase()===s)}
+  const getv=(p,k)=>k==='gap'?(p.fxRk?p.fxRk-p.rank:-999):k.startsWith('z.')?p.z[k.slice(2)]:k==='name'?p.name:(p[k]??999);
+  rows.sort((a,b)=>{const x=getv(a,S.sort),y=getv(b,S.sort);if(typeof x==='string')return S.dir*-1*x.localeCompare(y);return S.dir*(x-y)});
+  rows=rows.slice(0,180);
+  const stk={fxRk:'s1',rank:'s2',name:'s3'};
+  const nMine=R.me.players.length;
+  const ord=n=>n+(n===1?'st':n===2?'nd':n===3?'rd':'th');
+  const stand='<tr class="standrow">'+cols.map(c=>{
+    if(c.k==='name')return `<th class="l s3 standlab">My rank · supply<span>Elite players left now → at your next pick (#${turn})</span></th>`;
+    if(c.k==='fxRk')return '<th class="s1"></th>'; if(c.k==='rank')return '<th class="s2"></th>';
+    if(!c.cat)return '<th></th>';
+    const sc=SCAR[c.cat];const ratio=sc.now?sc.later/sc.now:0;const scls=(sc.later<=4||ratio<=.5)?'scarce':(sc.later<=8||ratio<=.7)?'tight':'deep';
+    const supply=`<em class="sup ${scls}" title="Top sources: ${esc(sc.names.join(', '))}">${sc.now} → ${sc.later}</em>`;
+    if(!W(c.cat))return `<th class="stc punt">PUNT${supply}</th>`;
+    if(!nMine)return `<th class="stc"><b>-</b>${supply}</th>`;
+    const rk=R.rank[c.cat],v=R.me.sum[c.cat];
+    const cls=rk<=3?'good':rk>=8?'bad':rk>=6?'warn':'';
+    return `<th class="stc ${cls}"><b>${ord(rk)} <small>${v>=0?'+':''}${v.toFixed(1)}</small></b>${supply}</th>`}).join('')+'</tr>';
+  const head='<thead>'+stand+'<tr class="colrow">'+cols.map(c=>`<th class="${c.left?'l':''} ${stk[c.k]||''} ${c.k!=='act'?'sortable':''}" data-sort="${c.k}" ${S.sort===c.k?'aria-sort="'+(S.dir<0?'descending':'ascending')+'"':''}>${c.l}${S.sort===c.k?(S.dir<0?' ▾':' ▴'):''}</th>`).join('')+'</tr></thead>';
+  const body='<tbody>'+rows.map(p=>{
+    const gap=p.fxRk?p.fxRk-p.rank:null;
+    const gpLow=p.GP<62;
+    return `<tr class="${p.taken?'taken':''} ${p.health.risk==='High'?'rowhigh':p.health.risk==='Med'?'rowmed':''}">
+      <td class="num fxrk s1">${p.fxRk||'-'}</td>
+      <td class="num s2">${p.rank}</td>
+      <td class="l s3"><div class="pname"><button class="nbtn" data-open="${p.id}" aria-expanded="${openId===p.id}">${esc(p.name)} <span class="chev">${openId===p.id?'▴':'▾'}</span></button>${injTag(p)}${p.fills?'<span class="tag need">NEED</span>':''}</div><div class="sub">${esc(p.pos.join('/'))} · ${p.team}${p.from?` <span class="tag mvt">NEW · was ${esc(p.from)}</span>`:''}${p.scout?' <span class="tag scn">NOTE</span>':''}${p.taken?' · '+esc(TEAMS[p.taken.team])+' #'+p.taken.pick:''}</div>${noteLine(p)}</td>
+      <td class="num ${gap==null?'':gap>0?'dgood':gap<-15?'dbad':''}">${gap==null?'-':(gap>0?'+':'')+gap}</td>
+      <td class="num sub">${p.fxADP?p.fxADP.toFixed(1):'-'}</td>
+      <td class="num">${p.val.toFixed(1)}</td>
+      <td class="num"><b>${p.fit.toFixed(1)}</b></td>
+      <td class="num gp ${gpLow?'low':''}">${p.GP}</td>
+      <td class="hcell">${riskBadge(p)}<div class="gpw">${gpBars(p)}</div></td>
+      <td class="num mincol">${p.MIN.toFixed(1)}</td>
+      ${CATS.map(c=>{const off=!W(c.k);return `<td class="c ${off?'off':''}" style="${heat(p.z[c.k],off)}">${cellVal(p,c.k)}</td>`}).join('')}
+      <td>${p.taken?'':`<button class="draft ${onClock===S.mySlot?'mine':''}" data-pick="${p.id}" ${done?'disabled':''}>Draft</button>`}</td></tr>${openId===p.id?`<tr class="scoutrow"><td colspan="${cols.length}">${scoutCard(p)}</td></tr>`:''}`}).join('')+'</tbody>';
+  $('board').innerHTML=head+body;
+  document.querySelectorAll('#sortPills .pill').forEach(b=>b.setAttribute('aria-pressed',b.dataset.qs===S.sort));
+  document.querySelectorAll('#posPills .pill').forEach(b=>b.setAttribute('aria-pressed',b.dataset.pos===S.pos));
+  $('viewBtn').setAttribute('aria-pressed',S.view==='z');$('viewBtn').textContent=S.view==='z'?'Show stats':'Show z-scores';
+  $('takenBtn').setAttribute('aria-pressed',S.showTaken);$('hideHighBtn').setAttribute('aria-pressed',!!S.hideHigh);
+
+  // roster
+  const A=assign(R.me.players);
+  $('rCount').textContent=`${R.me.players.length} of 17`;
+  $('slots').innerHTML=A.slots.map(s=>`<li class="${s.p?'':'empty'}"><span>${s.n}</span><span>${s.p?esc(s.p.name)+' <span class="sub">'+esc(s.p.pos.join('/'))+'</span>':'open'}</span></li>`).join('')+
+    Array.from({length:5},(_,i)=>{const p=A.bench[i];return `<li class="${p?'':'empty'}"><span>BN</span><span>${p?esc(p.name)+' <span class="sub">'+esc(p.pos.join('/'))+'</span>':'open'}</span></li>`}).join('');
+
+  // profile
+  const mx=Math.max(3,...CATS.map(c=>Math.abs(R.me.sum[c.k])));
+  $('prof').innerHTML=CATS.map(c=>{const v=R.me.sum[c.k];const w=Math.abs(v)/mx*50;
+    const style=v>=0?`left:50%;width:${w}%;background:var(--pos)`:`right:50%;width:${w}%;background:var(--neg)`;
+    const rk=R.rank[c.k];
+    return `<div class="prow ${W(c.k)?'':'punt'}"><span class="lab">${c.l}${S.mode[c.k]==='focus'?' ★':''}</span>
+      <span class="bar"><span class="mid"></span><i style="${style}"></i></span>
+      <span class="rk ${rk<=3?'dgood':rk>=8?'dbad':''}">${R.me.players.length?rk:'-'}</span></div>`}).join('');
+
+  // log
+  $('logCount').textContent=`${S.log.length} picks`;
+  $('log').innerHTML=S.log.map((e,i)=>{const nm=e.id!=null?P[e.id].name:(e.name||'Unknown player');return `<li class="${e.team===S.mySlot?'me':''}"><span class="num">#${i+1}</span><span>${esc(nm)}<br><span class="t">${esc(TEAMS[e.team])}</span></span></li>`}).join('')||'';
+  if(!S.log.length)$('log').innerHTML='<li><span></span><span class="t">No picks yet. Tap Draft as each pick happens in Fantrax.</span></li>';
+
+  // rosters
+  $('rosters').innerHTML=R.T.map((t,i)=>`<div class="troster"><h3>${esc(TEAMS[i])}${i===S.mySlot?' (me)':''} · ${t.players.length}</h3><p>${t.players.map(p=>esc(p.name)).join(', ')||'None yet'}</p></div>`).join('');
+}
+
+/* keep the board's scroll area sized under the sticky header */
+function setHdr(){document.documentElement.style.setProperty('--hdr',document.querySelector('.score').offsetHeight+'px')}
+setHdr();addEventListener('resize',setHdr);
+if(window.ResizeObserver)new ResizeObserver(setHdr).observe(document.querySelector('.score'));
+$('railBtn').onclick=()=>{document.body.classList.toggle('rail-on');$('railBtn').textContent=document.body.classList.contains('rail-on')?'Player board':'My team'};
+/* theme */
+function applyTheme(){document.documentElement.setAttribute('data-theme',S.theme);$('themeBtn').textContent=S.theme==='dark'?'Light mode':'Dark mode'}
+applyTheme();
+$('themeBtn').onclick=()=>{S.theme=S.theme==='dark'?'light':'dark';save();applyTheme()};
+/* events */
+$('mySlot').innerHTML=TEAMS.map((t,i)=>`<option value="${i}">${esc(t)}</option>`).join('');
+$('mySlot').value=S.mySlot;
+$('mySlot').onchange=e=>{S.mySlot=+e.target.value;save();render()};
+$('sortPills').innerHTML=[['fit','Sort: Fit'],['fxRk','Fantrax rank'],['rank','My rank']].map(([k,l])=>`<button class="pill" data-qs="${k}">${l}</button>`).join('');
+$('posPills').innerHTML=['ALL','PG','SG','SF','PF','C'].map(x=>`<button class="pill" data-pos="${x}">${x==='ALL'?'All':x}</button>`).join('');
+document.addEventListener('click',e=>{
+  const t=e.target.closest('button,th');if(!t)return;
+  if(t.dataset.recopen!=null){const id=+t.dataset.recopen;openId=id;q='';$('q').value='';S.pos='ALL';render();const b=document.querySelector(`[data-open="${id}"]`);if(b)b.scrollIntoView({block:'center',behavior:'smooth'});return}
+  if(t.dataset.open!=null){const id=+t.dataset.open;openId=openId===id?null:id;render();return}
+  if(t.dataset.pick!=null){const n=S.log.length+1;if(n>NT*NR)return;S.log.push({id:+t.dataset.pick,team:slotOf(n)});save();render();return}
+  if(t.dataset.m){S.mode[t.dataset.c]=t.dataset.m;save();render();return}
+  if(t.dataset.qs){S.sort=t.dataset.qs;S.dir=t.dataset.qs==='fit'?-1:1;save();render();return}
+  if(t.dataset.pos){S.pos=t.dataset.pos;save();render();return}
+  if(t.dataset.sort&&t.dataset.sort!=='act'){const k=t.dataset.sort;if(S.sort===k)S.dir*=-1;else{S.sort=k;S.dir=['rank','fxRk','fxADP','name'].includes(k)?1:-1}save();render();return}
+});
+$('viewBtn').onclick=()=>{S.view=S.view==='z'?'stats':'z';save();render()};
+$('takenBtn').onclick=()=>{S.showTaken=!S.showTaken;save();render()};
+$('hideHighBtn').onclick=()=>{S.hideHigh=!S.hideHigh;save();render()};
+$('undo').onclick=()=>{S.log.pop();save();render()};
+$('gpw').oninput=e=>{S.gpw=+e.target.value;save();render()};
+$('beta').oninput=e=>{S.beta=+e.target.value;save();render()};
+$('q').oninput=e=>{q=e.target.value.trim();render()};
+let armed=0;
+$('reset').onclick=()=>{const now=Date.now();if(now-armed<4000){S.log=[];armed=0;$('resetNote').hidden=true;save();render()}else{armed=now;$('resetNote').hidden=false;setTimeout(()=>$('resetNote').hidden=true,4000)}};
+/* Fantrax live sync: works when hosted somewhere without a fetch-blocking CSP (GitHub Pages). */
+const norm=s=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\b(jr|sr|ii|iii|iv)\b/g,'').replace(/[^a-z]/g,'');
+const byNorm=Object.fromEntries(P.map(p=>[norm(p.name),p.id]));
+let fxMap=null, syncTimer=null, busy=false;
+const setStat=t=>{$('syncStat').textContent=t};
+async function loadMap(){
+  const a=await (await fetch('https://www.fantrax.com/fxea/general/getAdp?sport=NBA&order=ADP')).json();
+  fxMap={};a.sort((x,y)=>x.ADP-y.ADP).forEach((x,i)=>{const [l,f]=x.name.split(', ');const nm=f?f+' '+l:x.name;const id=byNorm[norm(nm)]??null;fxMap[x.id]={name:nm,id};if(id!=null)P[id].fxRk=i+1});render();
+}
+async function syncOnce(){
+  if(busy)return;busy=true;
+  try{
+    if(!fxMap)await loadMap();
+    const d=await (await fetch(`https://www.fantrax.com/fxea/general/getDraftResults?leagueId=${LEAGUE}&_=${Date.now()}`,{cache:'no-store'})).json();
+    const picks=(d.draftPicks||[]).filter(x=>x.playerId||x.playerID||x.player_id).sort((a,b)=>a.pick-b.pick);
+    const log=picks.map(x=>{const pid=x.playerId||x.playerID||x.player_id;const m=fxMap[pid]||{name:'Player '+pid,id:null};
+      const ti=TEAM_IDS.indexOf(x.teamId);return {id:m.id,name:m.name,team:ti>=0?ti:slotOf(x.pick)}});
+    if(log.length>=S.log.length){const changed=JSON.stringify(log)!==JSON.stringify(S.log);S.log=log;if(changed){save();render()}}
+    setStat(`Live · ${log.length} picks · ${new Date().toLocaleTimeString([], {hour:'numeric',minute:'2-digit',second:'2-digit'})}`);
+  }catch(e){setStat('Sync blocked here. Tap Draft manually.');}
+  finally{busy=false}
+}
+function startSync(){clearInterval(syncTimer);$('syncBtn').setAttribute('aria-pressed',S.sync);
+  if(S.sync){syncOnce();syncTimer=setInterval(()=>{if(!document.hidden)syncOnce()},3000)}else setStat('Sync off. Tap Draft manually.')}
+$('syncBtn').onclick=()=>{S.sync=!S.sync;save();startSync()};
+$('syncNow').onclick=()=>syncOnce();
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&S.sync)syncOnce()});
+render();
+startSync();
+</script>
