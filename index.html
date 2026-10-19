@@ -197,14 +197,6 @@ details.plan[open] .chev{display:inline-block;transform:rotate(180deg)}
 .recpanel .recs{display:flex;overflow-x:auto;gap:10px;padding:10px 14px;-webkit-overflow-scrolling:touch}
 .recpanel .rec{flex:0 0 270px}
 .recpanel .ph{padding-block:8px}
-#railBtn{display:none}
-@media (max-width:1100px){
-  #railBtn{display:inline-block}
-  .rail{display:none}
-  body.rail-on .rail{display:flex}
-  body.rail-on .main{display:none}
-}
-@media (max-height:700px){.recpanel .rec .snote{display:none}}
 
 thead tr.standrow th{top:0;height:40px;padding:4px 6px;border-bottom:1px solid var(--line);text-transform:none;letter-spacing:0;font-size:12px;vertical-align:middle}
 thead tr.colrow th{top:40px}
@@ -234,6 +226,41 @@ th.stc b small{font-family:var(--f-mono);font-size:10.5px;font-weight:500;color:
 .sup.scarce{background:var(--neg);color:var(--surface)}
 .sup.tight{background:color-mix(in oklab,var(--warn) 30%,transparent);color:var(--warn)}
 .sup.deep{color:var(--muted)}
+
+/* ---- tablet landscape fit ---- */
+.score{gap:8px 16px;padding-top:8px;padding-bottom:8px}
+.stat b{font-size:22px}
+.btn{min-height:40px;padding:0 12px}
+select{min-height:40px}
+@media (max-width:1500px){.brand small{display:none}.brand{font-size:19px}}
+.main{overflow-y:auto;overflow-x:hidden;gap:8px}
+.wrap{margin-top:8px;margin-bottom:8px;gap:12px}
+.boardpanel{flex:none;height:calc(100dvh - var(--hdr,64px) - 20px);min-height:420px}
+.plan>summary.ph{min-height:40px;padding-block:6px}
+.tools{flex:none;flex-wrap:nowrap;overflow-x:auto;padding:8px 10px;gap:6px;-webkit-overflow-scrolling:touch}
+.tools input[type=search]{flex:1 0 170px;min-height:40px;height:40px;box-sizing:border-box}
+.tools .pills{flex-wrap:nowrap}
+.pill{min-height:38px;min-width:40px;padding:0 10px;white-space:nowrap;flex:none}
+.legend{flex:none;padding:8px 12px;border-bottom:1px solid var(--line)}
+.recstrip{display:flex;align-items:center;gap:8px;padding:6px 8px 6px 12px;flex:none}
+.rlab{font-family:var(--f-display);font-weight:600;font-size:15px;letter-spacing:.04em;text-transform:uppercase;white-space:nowrap;display:flex;flex-direction:column;line-height:1.1}
+.rlab small{font-family:var(--f-body);font-size:10.5px;font-weight:500;color:var(--muted);text-transform:none;letter-spacing:0}
+.recstrip .recs{display:flex;flex-direction:row;gap:8px;overflow-x:auto;padding:0;flex:1;min-width:0;-webkit-overflow-scrolling:touch}
+.recstrip .rec{flex:0 0 auto;display:flex;flex-direction:row;align-items:center;gap:8px;padding:3px 4px 3px 10px;min-height:44px;border:1px solid var(--line);border-radius:8px;background:var(--raised)}
+.recstrip .rec .rwhy{flex:none;max-width:110px}
+.recstrip .rec .draft{min-height:36px}
+/* roster rail becomes a slide-out drawer below 1500px */
+#railBtn{display:none}
+@media (max-width:1500px){
+  .wrap{grid-template-columns:minmax(0,1fr)}
+  #railBtn{display:inline-block}
+  .rail{display:flex!important;position:fixed;top:var(--hdr,64px);right:0;bottom:0;width:min(360px,92vw);z-index:30;background:var(--bg);
+    border-left:1px solid var(--line);padding:10px max(12px,env(safe-area-inset-right,0px)) 12px 12px;box-shadow:-12px 0 24px rgba(0,0,0,.35);
+    transform:translateX(105%);transition:transform .2s ease;visibility:hidden}
+  body.rail-on .rail{transform:none;visibility:visible}
+  body.rail-on .main{display:flex!important}
+}
+#railBtn[aria-pressed=true]{border-color:var(--accent);color:var(--accent)}
 @media (prefers-reduced-motion: reduce){*{transition:none!important}}
 </style>
 
@@ -250,7 +277,7 @@ th.stc b small{font-family:var(--f-mono);font-size:10.5px;font-weight:500;color:
     <label for="mySlot" class="sub">My team</label>
     <select id="mySlot"></select>
     <button class="btn" id="railBtn">My team</button>
-    <button class="btn" id="themeBtn">Light mode</button>
+    <button class="btn" id="themeBtn">Light</button>
     <button class="btn" id="undo">Undo pick</button>
     <button class="btn" id="syncBtn" aria-pressed="true">Fantrax sync</button>
     <button class="btn" id="syncNow">Sync now</button>
@@ -274,22 +301,23 @@ th.stc b small{font-family:var(--f-mono);font-size:10.5px;font-weight:500;color:
       </div>
     </details>
 
-    <details class="panel recpanel" id="recBox" open>
-      <summary class="ph"><h2>Best fits now <span class="chev">▾</span></h2><span class="hint" id="recHint"></span></summary>
+    <section class="panel recstrip" aria-label="Best fits now">
+      <span class="rlab">Best fits<small id="recHint"></small></span>
       <div class="recs" id="recs"></div>
-    </details>
+    </section>
 
     <section class="panel boardpanel" id="boardPanel">
-      <div class="ph"><h2>Player board</h2><span class="hint">Tap a name for the scouting card · tap a column to sort · tap Draft to log a pick for the team on the clock</span></div>
       <div class="tools">
         <input type="search" id="q" placeholder="Search player or team" autocomplete="off">
         <div class="pills" id="posPills"></div>
         <div class="pills" id="sortPills"></div>
-        <button class="pill" id="viewBtn" aria-pressed="false">Show z-scores</button>
-        <button class="pill" id="takenBtn" aria-pressed="false">Show drafted</button>
-        <button class="pill" id="hideHighBtn" aria-pressed="false">Hide high injury risk</button>
+        <button class="pill" id="viewBtn" aria-pressed="false">Z-scores</button>
+        <button class="pill" id="takenBtn" aria-pressed="false">Drafted</button>
+        <button class="pill" id="hideHighBtn" aria-pressed="false">Hide injured</button>
+        <button class="pill" id="keyBtn" aria-pressed="false">Key</button>
       </div>
-      <div class="legend">
+      <div class="legend" id="legend" hidden>
+        <span>Tap a name for the scouting card. Tap a column to sort. Tap Draft to log a pick for the team on the clock.</span>
         <span><i class="sw" style="background:color-mix(in oklab,var(--pos) 55%,transparent)"></i>Strong in cat</span>
         <span><i class="sw" style="background:color-mix(in oklab,var(--neg) 55%,transparent)"></i>Hurts cat</span>
         <span>Supply row: elite players (z 1.0+ in that cat) still available now → expected left at your next pick, by Fantrax rank. Red = scarce, take it early. Amber = thinning.</span>
@@ -1335,7 +1363,7 @@ function render(){
   const avail=P.filter(p=>!p.taken);
   const recs=[...avail].sort((a,b)=>b.fit-a.fit).slice(0,4);
   const after=nm!=null&&nm===n?nextMine(n+1):nm;
-  $('recHint').textContent=after?`Next turn after this: #${after}`:'';
+  $('recHint').textContent=after?`your next: #${after}`:'';
   $('recs').innerHTML=recs.map(p=>{
     const live=CATS.filter(c=>W(c.k));
     const best=[...live].sort((a,b)=>p.z[b.k]-p.z[a.k]).slice(0,3).filter(c=>p.z[c.k]>.3).map(c=>c.l);
@@ -1403,7 +1431,7 @@ function render(){
   $('board').innerHTML=head+body;
   document.querySelectorAll('#sortPills .pill').forEach(b=>b.setAttribute('aria-pressed',b.dataset.qs===S.sort));
   document.querySelectorAll('#posPills .pill').forEach(b=>b.setAttribute('aria-pressed',b.dataset.pos===S.pos));
-  $('viewBtn').setAttribute('aria-pressed',S.view==='z');$('viewBtn').textContent=S.view==='z'?'Show stats':'Show z-scores';
+  $('viewBtn').setAttribute('aria-pressed',S.view==='z');$('viewBtn').textContent=S.view==='z'?'Stats':'Z-scores';
   $('takenBtn').setAttribute('aria-pressed',S.showTaken);$('hideHighBtn').setAttribute('aria-pressed',!!S.hideHigh);
 
   // roster
@@ -1434,16 +1462,16 @@ function render(){
 function setHdr(){document.documentElement.style.setProperty('--hdr',document.querySelector('.score').offsetHeight+'px')}
 setHdr();addEventListener('resize',setHdr);
 if(window.ResizeObserver)new ResizeObserver(setHdr).observe(document.querySelector('.score'));
-$('railBtn').onclick=()=>{document.body.classList.toggle('rail-on');$('railBtn').textContent=document.body.classList.contains('rail-on')?'Player board':'My team'};
+$('railBtn').onclick=()=>{document.body.classList.toggle('rail-on');$('railBtn').setAttribute('aria-pressed',document.body.classList.contains('rail-on'))};
 /* theme */
-function applyTheme(){document.documentElement.setAttribute('data-theme',S.theme);$('themeBtn').textContent=S.theme==='dark'?'Light mode':'Dark mode'}
+function applyTheme(){document.documentElement.setAttribute('data-theme',S.theme);$('themeBtn').textContent=S.theme==='dark'?'Light':'Dark'}
 applyTheme();
 $('themeBtn').onclick=()=>{S.theme=S.theme==='dark'?'light':'dark';save();applyTheme()};
 /* events */
 $('mySlot').innerHTML=TEAMS.map((t,i)=>`<option value="${i}">${esc(t)}</option>`).join('');
 $('mySlot').value=S.mySlot;
 $('mySlot').onchange=e=>{S.mySlot=+e.target.value;save();render()};
-$('sortPills').innerHTML=[['fit','Sort: Fit'],['fxRk','Fantrax rank'],['rank','My rank']].map(([k,l])=>`<button class="pill" data-qs="${k}">${l}</button>`).join('');
+$('sortPills').innerHTML=[['fit','Fit'],['fxRk','FX rank'],['rank','My rank']].map(([k,l])=>`<button class="pill" data-qs="${k}">${l}</button>`).join('');
 $('posPills').innerHTML=['ALL','PG','SG','SF','PF','C'].map(x=>`<button class="pill" data-pos="${x}">${x==='ALL'?'All':x}</button>`).join('');
 document.addEventListener('click',e=>{
   const t=e.target.closest('button,th');if(!t)return;
@@ -1456,6 +1484,7 @@ document.addEventListener('click',e=>{
   if(t.dataset.sort&&t.dataset.sort!=='act'){const k=t.dataset.sort;if(S.sort===k)S.dir*=-1;else{S.sort=k;S.dir=['rank','fxRk','fxADP','name'].includes(k)?1:-1}save();render();return}
 });
 $('viewBtn').onclick=()=>{S.view=S.view==='z'?'stats':'z';save();render()};
+$('keyBtn').onclick=()=>{const l=$('legend');l.hidden=!l.hidden;$('keyBtn').setAttribute('aria-pressed',!l.hidden)};
 $('takenBtn').onclick=()=>{S.showTaken=!S.showTaken;save();render()};
 $('hideHighBtn').onclick=()=>{S.hideHigh=!S.hideHigh;save();render()};
 $('undo').onclick=()=>{S.log.pop();save();render()};
